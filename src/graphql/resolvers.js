@@ -86,7 +86,12 @@ const resolvers = {
     },
 
     getSchool: async (_, { id }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN']);
+      authorize(context);
+      if (context.role !== 'SUPER_ADMIN') {
+        if (!context.schoolId || context.schoolId.toString() !== id) {
+          throw new GraphQLError('Access denied. You can only view details of your own school.');
+        }
+      }
       return await models.School.findById(id);
     },
 
@@ -421,6 +426,197 @@ const resolvers = {
       let query = { studentId };
       if (examId) query.examId = examId;
       return await models.Marks.find(query).populate('examId').populate('subjectId');
+    },
+
+    getGrades: async (_, __, context) => {
+      authorize(context);
+      let grades = await models.Grades.find();
+      if (grades.length === 0) {
+        const defaultGrades = [
+          { gradeName: 'A+', minPercentage: 90, maxPercentage: 100, gradePoint: 4.0, remarks: 'Outstanding' },
+          { gradeName: 'A', minPercentage: 80, maxPercentage: 89.99, gradePoint: 3.75, remarks: 'Excellent' },
+          { gradeName: 'B+', minPercentage: 75, maxPercentage: 79.99, gradePoint: 3.5, remarks: 'Very Good' },
+          { gradeName: 'B', minPercentage: 70, maxPercentage: 74.99, gradePoint: 3.0, remarks: 'Good' },
+          { gradeName: 'C+', minPercentage: 65, maxPercentage: 69.99, gradePoint: 2.5, remarks: 'Above Average' },
+          { gradeName: 'C', minPercentage: 60, maxPercentage: 64.99, gradePoint: 2.0, remarks: 'Average' },
+          { gradeName: 'D', minPercentage: 40, maxPercentage: 59.99, gradePoint: 1.0, remarks: 'Pass' },
+          { gradeName: 'F', minPercentage: 0, maxPercentage: 39.99, gradePoint: 0.0, remarks: 'Fail' }
+        ];
+        grades = await models.Grades.insertMany(defaultGrades);
+      }
+      return grades;
+    },
+
+    getClassPerformanceAnalytics: async (_, { classId, examId }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'CLASS_TEACHER', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+
+      // 1. Fetch class students
+      const students = await models.Student.find({ classId });
+      if (students.length === 0) {
+        return {
+          classAverage: 0,
+          totalStudents: 0,
+          strugglingCount: 0,
+          highestScore: 0,
+          gradeDistribution: [],
+          studentAnalytics: [],
+          subjectAnalytics: []
+        };
+      }
+
+      // 2. Fetch exam schedules for the class
+      const schedules = await models.ExamSchedule.find({ examId, classId }).populate('subjectId');
+      
+      // 3. Fetch grades boundaries
+      let gradesList = await models.Grades.find();
+      if (gradesList.length === 0) {
+        gradesList = [
+          { gradeName: 'A+', minPercentage: 90, maxPercentage: 100 },
+          { gradeName: 'A', minPercentage: 80, maxPercentage: 89.99 },
+          { gradeName: 'B+', minPercentage: 75, maxPercentage: 79.99 },
+          { gradeName: 'B', minPercentage: 70, maxPercentage: 74.99 },
+          { gradeName: 'C+', minPercentage: 65, maxPercentage: 69.99 },
+          { gradeName: 'C', minPercentage: 60, maxPercentage: 64.99 },
+          { gradeName: 'D', minPercentage: 40, maxPercentage: 59.99 },
+          { gradeName: 'F', minPercentage: 0, maxPercentage: 39.99 }
+        ];
+      }
+
+      // Helper to find letter grade
+      const getGrade = (percentage) => {
+        const found = gradesList.find(g => percentage >= g.minPercentage && percentage <= g.maxPercentage);
+        return found ? found.gradeName : 'F';
+      };
+
+      // 4. For each student, compute performance
+      const studentAnalytics = [];
+      const gradeCounts = {};
+      gradesList.forEach(g => { gradeCounts[g.gradeName] = 0; });
+      if (!gradeCounts['F']) gradeCounts['F'] = 0;
+
+      let classPercentageSum = 0;
+      let highestScore = 0;
+      let strugglingCount = 0;
+
+      // Subject-wise stats tracking
+      const subjectStats = {};
+      schedules.forEach(s => {
+        if (s.subjectId) {
+          subjectStats[s.subjectId._id.toString()] = {
+            subjectId: s.subjectId._id,
+            subjectName: s.subjectId.name,
+            totalPercentageSum: 0,
+            highestScore: 0,
+            passCount: 0,
+            failCount: 0,
+            count: 0
+          };
+        }
+      });
+
+      // Total homework count for completion rate
+      const homeworkList = await models.Homework.find({ classId });
+      const totalHomeworkCount = homeworkList.length;
+
+      for (const student of students) {
+        const marks = await models.Marks.find({ studentId: student._id, examId });
+        let totalObtained = 0;
+        let totalMax = 0;
+        const marksDetail = [];
+
+        for (const sched of schedules) {
+          if (!sched.subjectId) continue;
+          const markRec = marks.find(m => m.subjectId.toString() === sched.subjectId._id.toString());
+          const obtained = markRec ? markRec.marksObtained : 0;
+          const percentage = sched.maxMarks > 0 ? (obtained / sched.maxMarks) * 100 : 0;
+          const passed = obtained >= sched.passMarks;
+          const subGrade = getGrade(percentage);
+
+          totalObtained += obtained;
+          totalMax += sched.maxMarks;
+
+          marksDetail.push({
+            subjectId: sched.subjectId._id,
+            subjectName: sched.subjectId.name,
+            marksObtained: obtained,
+            maxMarks: sched.maxMarks,
+            passMarks: sched.passMarks,
+            grade: subGrade,
+            pass: passed
+          });
+
+          // Subject aggregate updates
+          const stats = subjectStats[sched.subjectId._id.toString()];
+          if (stats) {
+            stats.totalPercentageSum += percentage;
+            if (obtained > stats.highestScore) stats.highestScore = obtained;
+            if (passed) stats.passCount += 1;
+            else stats.failCount += 1;
+            stats.count += 1;
+          }
+        }
+
+        const studentPct = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
+        const studentGrade = getGrade(studentPct);
+        const isStruggling = studentPct < 40;
+
+        if (isStruggling) strugglingCount += 1;
+        if (studentPct > highestScore) highestScore = studentPct;
+        classPercentageSum += studentPct;
+
+        // Grade count increment
+        gradeCounts[studentGrade] = (gradeCounts[studentGrade] || 0) + 1;
+
+        // Homework metrics
+        const submissions = await models.HomeworkSubmission.find({ studentId: student._id });
+        const gradedSubmissions = submissions.filter(sub => sub.status === 'GRADED');
+        const homeworkCompRate = totalHomeworkCount > 0 ? (submissions.length / totalHomeworkCount) * 100 : 0;
+        const homeworkAvg = gradedSubmissions.length > 0
+          ? (gradedSubmissions.reduce((sum, s) => sum + (s.gradePoints || 0), 0) / gradedSubmissions.length)
+          : null;
+
+        studentAnalytics.push({
+          studentId: student._id,
+          rollNo: student.rollNo,
+          name: `${student.firstName} ${student.lastName}`,
+          totalObtained,
+          totalMax,
+          percentage: studentPct,
+          grade: studentGrade,
+          isStruggling,
+          subjectsCount: marksDetail.length,
+          marks: marksDetail,
+          homeworkAverage: homeworkAvg,
+          homeworkCompletionRate: homeworkCompRate
+        });
+      }
+
+      // Compile class stats
+      const classAverage = students.length > 0 ? (classPercentageSum / students.length) : 0;
+      
+      const gradeDistribution = Object.keys(gradeCounts).map(g => ({
+        grade: g,
+        count: gradeCounts[g]
+      }));
+
+      const subjectAnalytics = Object.values(subjectStats).map(s => ({
+        subjectId: s.subjectId,
+        subjectName: s.subjectName,
+        averagePercentage: s.count > 0 ? (s.totalPercentageSum / s.count) : 0,
+        highestScore: s.highestScore,
+        passCount: s.passCount,
+        failCount: s.failCount
+      }));
+
+      return {
+        classAverage,
+        totalStudents: students.length,
+        strugglingCount,
+        highestScore,
+        gradeDistribution,
+        studentAnalytics,
+        subjectAnalytics
+      };
     },
 
     getHomework: async (_, { classId, sectionId }, context) => {
@@ -876,6 +1072,8 @@ const resolvers = {
         slug: args.slug,
         schoolCode: args.schoolCode.toUpperCase().trim(),
         themeColor: args.themeColor || '#6366F1',
+        logo: args.logo,
+        schoolLogo: args.schoolLogo || args.logo,
         contact: {
           email: args.contactEmail,
           phone: args.contactPhone
@@ -911,7 +1109,7 @@ const resolvers = {
       return school;
     },
 
-    updateSchool: async (_, { id, name, plan, status, address }, context) => {
+    updateSchool: async (_, { id, name, plan, status, address, logo, schoolLogo }, context) => {
       authorize(context, ['SUPER_ADMIN']);
       const school = await models.School.findById(id);
       if (!school) throw new Error('School not found.');
@@ -923,6 +1121,8 @@ const resolvers = {
         school.subscription.status = ['ACTIVE', 'APPROVED'].includes(status) ? 'ACTIVE' : status;
       }
       if (address) school.address = address;
+      if (logo !== undefined) school.logo = logo;
+      if (schoolLogo !== undefined) school.schoolLogo = schoolLogo;
 
       await school.save();
 
@@ -2028,6 +2228,22 @@ const resolvers = {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
       const deleted = await models.Timetable.findByIdAndDelete(id);
       if (!deleted) throw new GraphQLError('Timetable entry not found.');
+      return true;
+    },
+
+    deleteExam: async (_, { id }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      const exam = await models.Exam.findById(id);
+      if (!exam) throw new GraphQLError('Exam not found.');
+      await models.ExamSchedule.deleteMany({ examId: id });
+      await models.Exam.findByIdAndDelete(id);
+      return true;
+    },
+
+    deleteExamSchedule: async (_, { id }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      const deleted = await models.ExamSchedule.findByIdAndDelete(id);
+      if (!deleted) throw new GraphQLError('Exam schedule not found.');
       return true;
     }
   }

@@ -11,6 +11,7 @@ const typeDefs = require('./graphql/typeDefs');
 const resolvers = require('./graphql/resolvers');
 const models = require('./models');
 const { exportExcel, exportCSV, exportPDF } = require('./utils/exporter');
+const { generateReportCardPdf, generateClassReportCardsPdf } = require('./utils/reportCardGenerator');
 
 const app = express();
 
@@ -149,6 +150,39 @@ app.get('/api/export/:type/:module', protect, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error generating document report' });
+  }
+});
+
+// Report Cards PDF Generation Endpoints
+app.get('/api/report-cards/student/:studentId/exam/:examId', protect, async (req, res) => {
+  if (!req.userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const { studentId, examId } = req.params;
+  try {
+    const buffer = await generateReportCardPdf(studentId, examId, req.schoolId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=report-card-${studentId}.pdf`);
+    return res.send(buffer);
+  } catch (error) {
+    console.error('Error generating student report card PDF:', error);
+    res.status(500).json({ error: error.message || 'Server error generating report card' });
+  }
+});
+
+app.get('/api/report-cards/class/:classId/exam/:examId', protect, async (req, res) => {
+  if (!req.userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const { classId, examId } = req.params;
+  try {
+    const buffer = await generateClassReportCardsPdf(classId, examId, req.schoolId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=class-report-cards-${classId}.pdf`);
+    return res.send(buffer);
+  } catch (error) {
+    console.error('Error generating class report cards PDF:', error);
+    res.status(500).json({ error: error.message || 'Server error generating class report cards' });
   }
 });
 

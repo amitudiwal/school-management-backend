@@ -287,6 +287,55 @@ const typeDefs = gql`
     remarks: String
   }
 
+  type GradeCount {
+    grade: String!
+    count: Int!
+  }
+
+  type SubjectMarksDetail {
+    subjectId: ID!
+    subjectName: String!
+    marksObtained: Float!
+    maxMarks: Float!
+    passMarks: Float!
+    grade: String!
+    pass: Boolean!
+  }
+
+  type StudentPerformance {
+    studentId: ID!
+    rollNo: String
+    name: String!
+    totalObtained: Float!
+    totalMax: Float!
+    percentage: Float!
+    grade: String!
+    isStruggling: Boolean!
+    subjectsCount: Int!
+    marks: [SubjectMarksDetail!]!
+    homeworkAverage: Float
+    homeworkCompletionRate: Float
+  }
+
+  type SubjectPerformance {
+    subjectId: ID!
+    subjectName: String!
+    averagePercentage: Float!
+    highestScore: Float!
+    passCount: Int!
+    failCount: Int!
+  }
+
+  type ClassPerformanceAnalytics {
+    classAverage: Float!
+    totalStudents: Int!
+    strugglingCount: Int!
+    highestScore: Float!
+    gradeDistribution: [GradeCount!]!
+    studentAnalytics: [StudentPerformance!]!
+    subjectAnalytics: [SubjectPerformance!]!
+  }
+
   # Homework Types
   type Homework {
     id: ID!
@@ -564,6 +613,8 @@ const typeDefs = gql`
     getStudentMarks(studentId: ID!, examId: ID): [Marks!]!
     getHomework(classId: ID!, sectionId: ID!): [Homework!]!
     getHomeworkSubmissions(homeworkId: ID!): [HomeworkSubmission!]!
+    getClassPerformanceAnalytics(classId: ID!, examId: ID!): ClassPerformanceAnalytics!
+    getGrades: [Grades!]!
 
     # Finance & HR
     getFeesList(classId: ID): [Fees!]!
@@ -589,8 +640,8 @@ const typeDefs = gql`
     loginWithPassword(email: String!, password: String!, schoolId: ID): AuthPayload!
 
     # Super Admin Operations
-    createSchool(name: String!, slug: String!, schoolCode: String!, contactEmail: String!, contactPhone: String!, plan: String!, adminName: String!, adminEmail: String!, adminPassword: String!, themeColor: String, address: AddressInput): School!
-    updateSchool(id: ID!, name: String, plan: String, status: String, address: AddressInput): School!
+    createSchool(name: String!, slug: String!, schoolCode: String!, contactEmail: String!, contactPhone: String!, plan: String!, adminName: String!, adminEmail: String!, adminPassword: String!, themeColor: String, address: AddressInput, logo: String, schoolLogo: String): School!
+    updateSchool(id: ID!, name: String, plan: String, status: String, address: AddressInput, logo: String, schoolLogo: String): School!
     suspendSchool(id: ID!): School!
     activateSchool(id: ID!): School!
     deleteSchool(id: ID!): Boolean!
@@ -748,6 +799,8 @@ const typeDefs = gql`
     createTimetableEntry(dayOfWeek: String!, startTime: String!, endTime: String!, classId: ID!, sectionId: ID!, subjectId: ID!, teacherId: ID!, roomNumber: String): Timetable!
     updateTimetableEntry(id: ID!, dayOfWeek: String, startTime: String, endTime: String, classId: ID, sectionId: ID, subjectId: ID, teacherId: ID, roomNumber: String): Timetable!
     deleteTimetableEntry(id: ID!): Boolean!
+    deleteExam(id: ID!): Boolean!
+    deleteExamSchedule(id: ID!): Boolean!
   }
 `;
 
