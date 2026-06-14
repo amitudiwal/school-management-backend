@@ -584,7 +584,7 @@ const typeDefs = gql`
     getGlobalAuditLogs: [AuditLog!]!
 
     # School Config & Admin
-    getSchoolAdminDashboard: SchoolAdminDashboard!
+    getSchoolAdminDashboard(date: Date): SchoolAdminDashboard!
     getClasses: [Class!]!
     getSections(classId: ID): [Section!]!
     getSubjects(classId: ID): [Subject!]!

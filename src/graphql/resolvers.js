@@ -145,7 +145,7 @@ const resolvers = {
       return await models.AuditLogs.find().populate('userId').sort({ createdAt: -1 }).limit(100);
     },
 
-    getSchoolAdminDashboard: async (_, __, context) => {
+    getSchoolAdminDashboard: async (_, { date }, context) => {
       authorize(context, ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
       
       const studentCount = await models.Student.countDocuments();
@@ -153,13 +153,13 @@ const resolvers = {
       const staffCount = await models.Staff.countDocuments();
       
       // Attendance Stats
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const targetDate = date ? new Date(date) : new Date();
+      targetDate.setHours(0, 0, 0, 0);
       
       // Student Attendance
-      const totalAttendanceCount = await models.Attendance.countDocuments({ date: today });
-      const presentCount = await models.Attendance.countDocuments({ date: today, status: 'PRESENT' });
-      const lateCount = await models.Attendance.countDocuments({ date: today, status: 'LATE' });
+      const totalAttendanceCount = await models.Attendance.countDocuments({ date: targetDate });
+      const presentCount = await models.Attendance.countDocuments({ date: targetDate, status: 'PRESENT' });
+      const lateCount = await models.Attendance.countDocuments({ date: targetDate, status: 'LATE' });
       
       let presentPercent = 95.0; // Default fallback
       let absentPercent = 3.0;
@@ -172,26 +172,26 @@ const resolvers = {
       }
 
       // Teacher Attendance
-      const totalTeacherAttendance = await models.TeacherAttendance.countDocuments({ date: today });
+      const totalTeacherAttendance = await models.TeacherAttendance.countDocuments({ date: targetDate });
       let teacherPresentPercent = 98.0; // Default fallback
       let teacherAbsentPercent = 1.0;
       let teacherLatePercent = 1.0;
       if (totalTeacherAttendance > 0) {
-        const teacherPresentCount = await models.TeacherAttendance.countDocuments({ date: today, status: 'PRESENT' });
-        const teacherLateCount = await models.TeacherAttendance.countDocuments({ date: today, status: 'LATE' });
+        const teacherPresentCount = await models.TeacherAttendance.countDocuments({ date: targetDate, status: 'PRESENT' });
+        const teacherLateCount = await models.TeacherAttendance.countDocuments({ date: targetDate, status: 'LATE' });
         teacherPresentPercent = (teacherPresentCount / totalTeacherAttendance) * 100;
         teacherLatePercent = (teacherLateCount / totalTeacherAttendance) * 100;
         teacherAbsentPercent = 100 - teacherPresentPercent - teacherLatePercent;
       }
 
       // Staff Attendance
-      const totalStaffAttendance = await models.StaffAttendance.countDocuments({ date: today });
+      const totalStaffAttendance = await models.StaffAttendance.countDocuments({ date: targetDate });
       let staffPresentPercent = 96.0; // Default fallback
       let staffAbsentPercent = 2.0;
       let staffLatePercent = 2.0;
       if (totalStaffAttendance > 0) {
-        const staffPresentCount = await models.StaffAttendance.countDocuments({ date: today, status: 'PRESENT' });
-        const staffLateCount = await models.StaffAttendance.countDocuments({ date: today, status: 'LATE' });
+        const staffPresentCount = await models.StaffAttendance.countDocuments({ date: targetDate, status: 'PRESENT' });
+        const staffLateCount = await models.StaffAttendance.countDocuments({ date: targetDate, status: 'LATE' });
         staffPresentPercent = (staffPresentCount / totalStaffAttendance) * 100;
         staffLatePercent = (staffLateCount / totalStaffAttendance) * 100;
         staffAbsentPercent = 100 - staffPresentPercent - staffLatePercent;
