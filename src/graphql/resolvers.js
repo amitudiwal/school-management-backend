@@ -447,11 +447,13 @@ const resolvers = {
       return grades;
     },
 
-    getClassPerformanceAnalytics: async (_, { classId, examId }, context) => {
+    getClassPerformanceAnalytics: async (_, { classId, examId, sectionId }, context) => {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'CLASS_TEACHER', 'PRINCIPAL', 'VICE_PRINCIPAL']);
 
       // 1. Fetch class students
-      const students = await models.Student.find({ classId });
+      const studentQuery = { classId };
+      if (sectionId) studentQuery.sectionId = sectionId;
+      const students = await models.Student.find(studentQuery);
       if (students.length === 0) {
         return {
           classAverage: 0,
@@ -515,7 +517,9 @@ const resolvers = {
       });
 
       // Total homework count for completion rate
-      const homeworkList = await models.Homework.find({ classId });
+      const homeworkQuery = { classId };
+      if (sectionId) homeworkQuery.sectionId = sectionId;
+      const homeworkList = await models.Homework.find(homeworkQuery);
       const totalHomeworkCount = homeworkList.length;
 
       for (const student of students) {

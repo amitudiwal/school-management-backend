@@ -445,6 +445,185 @@ const seed = async () => {
         dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
       });
 
+      // --- POPULATE REQUESTED DATA FOR GREENVALLEY ---
+      console.log('Generating requested data for Greenvalley: 5 grades, 3 sections each, 5 subjects each, 10 teachers, 50 students');
+
+      // 1. Create 5 Grades
+      const newClasses = [];
+      for (let i = 1; i <= 5; i++) {
+        const cls = await models.Class.create({
+          name: `Grade ${i}`,
+          code: `G${i}`,
+          description: `Elementary School Grade ${i}`
+        });
+        newClasses.push(cls);
+      }
+
+      // 2. Create 3 Sections for each Grade (A, B, C) and 5 Subjects for each Grade
+      const sectionsList = [];
+      const subjectsMap = {}; // classId -> list of subjects
+
+      for (const cls of newClasses) {
+        // Sections
+        const secNames = ['A', 'B', 'C'];
+        for (const sName of secNames) {
+          const sec = await models.Section.create({
+            classId: cls._id,
+            name: `Section ${sName}`,
+            roomNumber: `Room ${cls.code.replace('G', '')}0${secNames.indexOf(sName) + 1}`,
+            capacity: 30
+          });
+          sectionsList.push(sec);
+        }
+
+        // Subjects
+        const subDefs = [
+          { name: 'Mathematics', code: `MATH-${cls.code}`, type: 'THEORY' },
+          { name: 'Science', code: `SCI-${cls.code}`, type: 'BOTH' },
+          { name: 'English', code: `ENG-${cls.code}`, type: 'THEORY' },
+          { name: 'Social Studies', code: `SOC-${cls.code}`, type: 'THEORY' },
+          { name: 'Computer Science', code: `COMP-${cls.code}`, type: 'PRACTICAL' }
+        ];
+
+        subjectsMap[cls._id.toString()] = [];
+        for (const s of subDefs) {
+          const sub = await models.Subject.create({
+            classId: cls._id,
+            name: `${s.name} ${cls.name}`,
+            code: s.code,
+            type: s.type
+          });
+          subjectsMap[cls._id.toString()].push(sub);
+        }
+      }
+
+      // 3. Create 10 Teachers
+      const teachersList = [];
+      const teacherNames = [
+        { first: 'Albert', last: 'Einstein', qual: 'Ph.D. in Physics' },
+        { first: 'Marie', last: 'Curie', qual: 'Ph.D. in Chemistry' },
+        { first: 'Isaac', last: 'Newton', qual: 'Ph.D. in Mathematics' },
+        { first: 'Galileo', last: 'Galilei', qual: 'M.Sc. in Astronomy' },
+        { first: 'Charles', last: 'Darwin', qual: 'Ph.D. in Biology' },
+        { first: 'Nikola', last: 'Tesla', qual: 'B.Sc. in Electrical Eng' },
+        { first: 'Stephen', last: 'Hawking', qual: 'Ph.D. in Cosmology' },
+        { first: 'Jane', last: 'Goodall', qual: 'Ph.D. in Anthropology' },
+        { first: 'Alan', last: 'Turing', qual: 'Ph.D. in Mathematics' },
+        { first: 'Richard', last: 'Feynman', qual: 'Ph.D. in Physics' }
+      ];
+
+      for (let i = 0; i < 10; i++) {
+        const def = teacherNames[i];
+        const email = `teacher.demo${i + 1}@greenwood.com`;
+        
+        const userT = await models.User.create({
+          name: `${def.first} ${def.last}`,
+          email,
+          password: 'teacher_password',
+          role: 'TEACHER',
+          schoolId: school._id,
+          status: 'ACTIVE'
+        });
+
+        // Assign some subjects and classes/sections
+        // Let's distribute subjects and sections round-robin
+        const classIdx = i % newClasses.length;
+        const targetClass = newClasses[classIdx];
+        const classSubjects = subjectsMap[targetClass._id.toString()] || [];
+        const classSections = sectionsList.filter(s => s.classId.toString() === targetClass._id.toString());
+
+        const teacher = await models.Teacher.create({
+          userId: userT._id,
+          firstName: def.first,
+          lastName: def.last,
+          gender: i % 2 === 0 ? 'MALE' : 'FEMALE',
+          dateOfBirth: new Date(1975 + (i * 2), 4, 15),
+          phone: `+1-555-90${i.toString().padStart(2, '0')}`,
+          email,
+          qualification: def.qual,
+          designation: 'Faculty Teacher',
+          assignedSubjects: classSubjects.map(sub => sub._id),
+          assignedClasses: classSections.map(sec => ({ classId: targetClass._id, sectionId: sec._id }))
+        });
+
+        teachersList.push(teacher);
+      }
+
+      // 4. Create 50 Students
+      for (let i = 1; i <= 50; i++) {
+        const email = `student.demo${i}@greenwood.com`;
+        const userS = await models.User.create({
+          name: `Student Demo ${i}`,
+          email,
+          password: 'student_password',
+          role: 'STUDENT',
+          schoolId: school._id,
+          status: 'ACTIVE'
+        });
+
+        // Pick a section round-robin from our 15 sections
+        const secIdx = (i - 1) % sectionsList.length;
+        const targetSec = sectionsList[secIdx];
+
+        await models.Student.create({
+          userId: userS._id,
+          admissionNo: `ADM-2026-VAL${i.toString().padStart(3, '0')}`,
+          rollNo: `${Math.ceil(i / sectionsList.length)}`,
+          firstName: 'Student',
+          lastName: `Demo ${i}`,
+          gender: i % 2 === 0 ? 'FEMALE' : 'MALE',
+          dateOfBirth: new Date(2012 + (i % 4), (i % 12), (i % 28) + 1),
+          classId: targetSec.classId,
+          sectionId: targetSec._id
+        });
+      }
+
+      // 5. Create Exams and Exam Schedules for the 5 Grades and their 5 Subjects
+      console.log('Seeding Exam and ExamSchedules for Greenwood school');
+      const examMid = await models.Exam.create({
+        name: 'Mid-Term Examination (2026)',
+        academicYear: '2026-2027',
+        startDate: new Date('2026-09-15'),
+        endDate: new Date('2026-09-25')
+      });
+      const examFinal = await models.Exam.create({
+        name: 'Final Term Examination (2026)',
+        academicYear: '2026-2027',
+        startDate: new Date('2026-12-10'),
+        endDate: new Date('2026-12-22')
+      });
+
+      for (const cls of newClasses) {
+        const classSubjects = subjectsMap[cls._id.toString()] || [];
+        for (const sub of classSubjects) {
+          // Mid-Term schedule
+          await models.ExamSchedule.create({
+            examId: examMid._id,
+            classId: cls._id,
+            subjectId: sub._id,
+            date: new Date('2026-09-16'),
+            startTime: '09:00',
+            endTime: '12:00',
+            maxMarks: 100,
+            passMarks: 40,
+            roomNo: 'Exam Hall A'
+          });
+
+          // Final Term schedule
+          await models.ExamSchedule.create({
+            examId: examFinal._id,
+            classId: cls._id,
+            subjectId: sub._id,
+            date: new Date('2026-12-11'),
+            startTime: '09:00',
+            endTime: '12:00',
+            maxMarks: 100,
+            passMarks: 40,
+            roomNo: 'Exam Hall B'
+          });
+        }
+      }
+
       console.log('Greenwood School Specific Mock Data Seeded successfully.');
     });
 

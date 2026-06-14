@@ -613,7 +613,7 @@ const typeDefs = gql`
     getStudentMarks(studentId: ID!, examId: ID): [Marks!]!
     getHomework(classId: ID!, sectionId: ID!): [Homework!]!
     getHomeworkSubmissions(homeworkId: ID!): [HomeworkSubmission!]!
-    getClassPerformanceAnalytics(classId: ID!, examId: ID!): ClassPerformanceAnalytics!
+    getClassPerformanceAnalytics(classId: ID!, examId: ID!, sectionId: ID): ClassPerformanceAnalytics!
     getGrades: [Grades!]!
 
     # Finance & HR

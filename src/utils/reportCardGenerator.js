@@ -1,7 +1,24 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const models = require('../models');
+
+// Helper to download external image as a Buffer
+const downloadImageAsBuffer = (url) => {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`Failed to download image, status code: ${res.statusCode}`));
+        return;
+      }
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', err => reject(err));
+    }).on('error', err => reject(err));
+  });
+};
 
 // Helper to determine letter grade based on percentage and grades list
 const getGradeForPercentage = (percentage, grades) => {
@@ -62,19 +79,36 @@ const drawReportCardPage = async (doc, student, exam, school, grades, isMultiPag
 
   // 5. Drawing layout elements
   // Logo & School Header
-  let logoPath = null;
+  let logoBufferOrPath = null;
   const schoolLogo = school.schoolLogo || school.logo;
   if (schoolLogo) {
-    const filename = path.basename(schoolLogo);
-    const possiblePath = path.join(__dirname, '../../uploads', filename);
-    if (fs.existsSync(possiblePath)) {
-      logoPath = possiblePath;
+    if (schoolLogo.startsWith('http://') || schoolLogo.startsWith('https://')) {
+      try {
+        logoBufferOrPath = await downloadImageAsBuffer(schoolLogo);
+      } catch (err) {
+        console.error('Failed to download school logo from URL:', schoolLogo, err);
+      }
+    } else {
+      const filename = path.basename(schoolLogo);
+      const possiblePath = path.join(__dirname, '../../uploads', filename);
+      if (fs.existsSync(possiblePath)) {
+        logoBufferOrPath = possiblePath;
+      }
     }
   }
 
   const startY = 40;
-  if (logoPath) {
-    doc.image(logoPath, 40, startY, { width: 60 });
+  let logoRendered = false;
+  if (logoBufferOrPath) {
+    try {
+      doc.image(logoBufferOrPath, 40, startY, { width: 60 });
+      logoRendered = true;
+    } catch (err) {
+      console.error('Failed to draw school logo on PDF:', err);
+    }
+  }
+
+  if (logoRendered) {
     doc.fillColor('#4F46E5').fontSize(20).font('Helvetica-Bold').text(school.schoolName || school.name, 115, startY);
     doc.fillColor('#64748B').fontSize(9).font('Helvetica').text(
       `${school.address?.street || ''}, ${school.address?.city || ''}, ${school.address?.state || ''} - ${school.address?.zipCode || ''}`, 
@@ -126,9 +160,9 @@ const drawReportCardPage = async (doc, student, exam, school, grades, isMultiPag
   doc.text('SUBJECT', 50, tableTop + 6, { width: 160 });
   doc.text('MAX MARKS', 220, tableTop + 6, { width: 70, align: 'right' });
   doc.text('PASS MARKS', 300, tableTop + 6, { width: 70, align: 'right' });
-  doc.text('MARKS OBTAINED', 380, tableTop + 6, { width: 95, align: 'right' });
-  doc.text('GRADE', 485, tableTop + 6, { width: 35, align: 'center' });
-  doc.text('STATUS', 520, tableTop + 6, { width: 30, align: 'center' });
+  doc.text('MARKS OBTAINED', 380, tableTop + 6, { width: 90, align: 'right' });
+  doc.text('GRADE', 475, tableTop + 6, { width: 35, align: 'center' });
+  doc.text('STATUS', 515, tableTop + 6, { width: 40, align: 'center' });
 
   // Table Rows
   let currentY = tableTop + 20;
@@ -149,14 +183,14 @@ const drawReportCardPage = async (doc, student, exam, school, grades, isMultiPag
       doc.text(sub.subjectName, 50, currentY + 5, { width: 160 });
       doc.text(sub.maxMarks.toString(), 220, currentY + 5, { width: 70, align: 'right' });
       doc.text(sub.passMarks.toString(), 300, currentY + 5, { width: 70, align: 'right' });
-      doc.text(sub.marksObtained.toString(), 380, currentY + 5, { width: 95, align: 'right' });
-      doc.text(sub.grade, 485, currentY + 5, { width: 35, align: 'center' });
+      doc.text(sub.marksObtained.toString(), 380, currentY + 5, { width: 90, align: 'right' });
+      doc.text(sub.grade, 475, currentY + 5, { width: 35, align: 'center' });
       
       // Status Color coding
       if (sub.status === 'PASS') {
-        doc.fillColor('#10B981').font('Helvetica-Bold').text('PASS', 520, currentY + 5, { width: 30, align: 'center' }).font('Helvetica');
+        doc.fillColor('#10B981').font('Helvetica-Bold').text('PASS', 515, currentY + 5, { width: 40, align: 'center' }).font('Helvetica');
       } else {
-        doc.fillColor('#EF4444').font('Helvetica-Bold').text('FAIL', 520, currentY + 5, { width: 30, align: 'center' }).font('Helvetica');
+        doc.fillColor('#EF4444').font('Helvetica-Bold').text('FAIL', 515, currentY + 5, { width: 40, align: 'center' }).font('Helvetica');
       }
 
       // Draw bottom line
@@ -256,8 +290,10 @@ const generateReportCardPdf = async (studentId, examId, schoolId) => {
 };
 
 // Generates PDF buffer with report cards for ALL students in a class
-const generateClassReportCardsPdf = async (classId, examId, schoolId) => {
-  const students = await models.Student.find({ classId }).populate('classId').populate('sectionId').populate('userId');
+const generateClassReportCardsPdf = async (classId, examId, schoolId, sectionId = null) => {
+  const query = { classId };
+  if (sectionId) query.sectionId = sectionId;
+  const students = await models.Student.find(query).populate('classId').populate('sectionId').populate('userId');
   if (students.length === 0) throw new Error('No students found in the selected class');
 
   const exam = await models.Exam.findById(examId);

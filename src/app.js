@@ -175,8 +175,9 @@ app.get('/api/report-cards/class/:classId/exam/:examId', protect, async (req, re
     return res.status(401).json({ error: 'Authentication required' });
   }
   const { classId, examId } = req.params;
+  const { sectionId } = req.query;
   try {
-    const buffer = await generateClassReportCardsPdf(classId, examId, req.schoolId);
+    const buffer = await generateClassReportCardsPdf(classId, examId, req.schoolId, sectionId);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=class-report-cards-${classId}.pdf`);
     return res.send(buffer);
