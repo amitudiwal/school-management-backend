@@ -169,6 +169,13 @@ const typeDefs = gql`
     status: String!
   }
 
+  type BankDetails {
+    accountName: String
+    accountNo: String
+    bankName: String
+    ifscCode: String
+  }
+
   type Teacher {
     id: ID!
     userId: User!
@@ -186,6 +193,7 @@ const typeDefs = gql`
     assignedClasses: [AssignedClass]
     isClassTeacher: Boolean
     classTeacherOf: AssignedClass
+    bankDetails: BankDetails
     status: String!
   }
 
@@ -388,6 +396,16 @@ const typeDefs = gql`
     remarks: String
   }
 
+  type StudentFeeLedger {
+    studentId: ID!
+    studentName: String!
+    admissionNo: String!
+    className: String!
+    totalPayable: Float!
+    totalPaid: Float!
+    outstanding: Float!
+  }
+
   # HR & Library Types
   type LeaveManagement {
     id: ID!
@@ -402,16 +420,53 @@ const typeDefs = gql`
     approvedAt: Date
   }
 
+  type PayrollItem {
+    name: String!
+    amount: Float!
+  }
+
+  input PayrollItemInput {
+    name: String!
+    amount: Float!
+  }
+
+  type TeacherAttendanceStats {
+    presentCount: Int!
+    absentCount: Int!
+    halfDayCount: Int!
+    leaveCount: Int!
+    totalCount: Int!
+  }
+
+  type LeaveBalance {
+    leaveType: String!
+    allowed: Int!
+    used: Float!
+    remaining: Float!
+  }
+
+  type LeaveLimit {
+    id: ID!
+    casual: Int!
+    medical: Int!
+    maternity: Int!
+    paternity: Int!
+    sabbatical: Int!
+  }
+
   type Payroll {
     id: ID!
     userId: User!
     basicSalary: Float!
+    allowances: [PayrollItem!]
+    deductions: [PayrollItem!]
     netSalary: Float!
     month: Int!
     year: Int!
     status: String!
     payslipNo: String!
     paymentDate: Date
+    paymentMethod: String
   }
 
   type LibraryBook {
@@ -619,8 +674,12 @@ const typeDefs = gql`
     # Finance & HR
     getFeesList(classId: ID): [Fees!]!
     getStudentFeeStatus(studentId: ID!): [FeePayments!]!
+    getStudentFeeLedger(classId: ID): [StudentFeeLedger!]!
     getLeaveRequests: [LeaveManagement!]!
     getPayrollList: [Payroll!]!
+    getTeacherAttendanceStats(teacherId: ID!, month: Int!, year: Int!): TeacherAttendanceStats!
+    getTeacherLeaveBalance(userId: ID!): [LeaveBalance!]!
+    getLeaveLimit: LeaveLimit!
 
     # Ops
     getLibraryBooks(search: String): [LibraryBook!]!
@@ -785,7 +844,8 @@ const typeDefs = gql`
     # HR & Operations
     requestLeave(leaveType: String!, startDate: Date!, endDate: Date!, reason: String!): LeaveManagement!
     updateLeaveStatus(leaveId: ID!, status: String!, remarks: String): LeaveManagement!
-    generatePayslip(userId: ID!, basicSalary: Float!, month: Int!, year: Int!, allowances: [DocumentInput], deductions: [DocumentInput]): Payroll!
+    generatePayslip(userId: ID!, basicSalary: Float!, month: Int!, year: Int!, allowances: [PayrollItemInput!], deductions: [PayrollItemInput!], paymentMethod: String): Payroll!
+    updateLeaveLimit(casual: Int!, medical: Int!, maternity: Int!, paternity: Int!, sabbatical: Int!): LeaveLimit!
 
     # Library, Transport & Inventory
     createLibraryBook(title: String!, author: String!, isbn: String!, category: String!, totalCopies: Int!, rackNo: String): LibraryBook!

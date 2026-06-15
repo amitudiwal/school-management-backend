@@ -30,6 +30,7 @@ const Vehicles = require('./Vehicles');
 const Inventory = require('./Inventory');
 const AuditLogs = require('./AuditLogs');
 const Timetable = require('./Timetable');
+const LeaveLimit = require('./LeaveLimit');
 
 module.exports = {
   School,
@@ -63,5 +64,6 @@ module.exports = {
   Vehicles,
   Inventory,
   AuditLogs,
-  Timetable
+  Timetable,
+  LeaveLimit
 };

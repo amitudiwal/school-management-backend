@@ -648,18 +648,174 @@ const resolvers = {
       return await models.FeePayments.find({ studentId }).populate('feeId');
     },
 
+    getStudentFeeLedger: async (_, { classId }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'ACCOUNTANT']);
+      
+      const studentQuery = classId ? { classId } : {};
+      const students = await models.Student.find(studentQuery)
+        .populate('classId')
+        .lean();
+        
+      if (!students.length) return [];
+      
+      const fees = await models.Fees.find().lean();
+      const payments = await models.FeePayments.find({ status: { $in: ['PAID', 'PARTIAL'] } }).lean();
+      
+      const ledger = students.map(student => {
+        const studentClassIdStr = student.classId?._id?.toString() || student.classId?.toString() || '';
+        const studentFees = fees.filter(f => {
+          const feeClassIdStr = f.classId?._id?.toString() || f.classId?.toString() || '';
+          return feeClassIdStr === studentClassIdStr;
+        });
+        
+        const totalPayable = studentFees.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+        
+        const studentIdStr = student._id.toString();
+        const studentPayments = payments.filter(p => p.studentId?.toString() === studentIdStr);
+        const totalPaid = studentPayments.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
+        const outstanding = totalPayable - totalPaid;
+        
+        return {
+          studentId: student._id.toString(),
+          studentName: `${student.firstName} ${student.lastName}`,
+          admissionNo: student.admissionNo || '',
+          className: student.classId?.name || 'Unassigned',
+          totalPayable,
+          totalPaid,
+          outstanding
+        };
+      });
+      
+      return ledger;
+    },
+
     getLeaveRequests: async (_, __, context) => {
       authorize(context);
       // Non-admins only get their own leave requests
       if (['TEACHER', 'HR_STAFF', 'ACCOUNTANT', 'LIBRARIAN', 'TRANSPORT_MANAGER', 'RECEPTIONIST'].includes(context.role)) {
-        return await models.LeaveManagement.find({ userId: context.userId }).populate('userId');
+        return await models.LeaveManagement.find({ userId: context.userId }).populate('userId').populate('approvedBy');
       }
-      return await models.LeaveManagement.find().populate('userId');
+      return await models.LeaveManagement.find().populate('userId').populate('approvedBy');
     },
 
     getPayrollList: async (_, __, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'HR_STAFF', 'ACCOUNTANT']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'HR_STAFF', 'ACCOUNTANT', 'TEACHER', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      if (context.role === 'TEACHER') {
+        return await models.Payroll.find({ userId: context.userId }).populate('userId');
+      }
       return await models.Payroll.find().populate('userId');
+    },
+
+    getTeacherAttendanceStats: async (_, { teacherId, month, year }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'HR_STAFF', 'ACCOUNTANT', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+      
+      const attendance = await models.TeacherAttendance.find({
+        teacherId,
+        date: { $gte: startDate, $lte: endDate }
+      });
+      
+      let presentCount = 0;
+      let absentCount = 0;
+      let halfDayCount = 0;
+      let leaveCount = 0;
+      
+      attendance.forEach(att => {
+        if (att.status === 'PRESENT') presentCount++;
+        else if (att.status === 'ABSENT') absentCount++;
+        else if (att.status === 'HALF_DAY') halfDayCount++;
+        else if (att.status === 'LEAVE') leaveCount++;
+      });
+      
+      return {
+        presentCount,
+        absentCount,
+        halfDayCount,
+        leaveCount,
+        totalCount: attendance.length
+      };
+    },
+
+    getTeacherLeaveBalance: async (_, { userId }, context) => {
+      authorize(context);
+      
+      const currentYear = new Date().getFullYear();
+      const startDate = new Date(currentYear, 0, 1);
+      const endDate = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+      
+      const approvedLeaves = await models.LeaveManagement.find({
+        userId,
+        status: 'APPROVED',
+        startDate: { $gte: startDate },
+        endDate: { $lte: endDate }
+      });
+      
+      let limit = await models.LeaveLimit.findOne();
+      if (!limit) {
+        limit = {
+          casual: 15,
+          medical: 10,
+          maternity: 90,
+          paternity: 15,
+          sabbatical: 30
+        };
+      }
+      
+      const limits = {
+        'CASUAL': limit.casual,
+        'MEDICAL': limit.medical,
+        'MATERNITY': limit.maternity,
+        'PATERNITY': limit.paternity,
+        'SABBATICAL': limit.sabbatical,
+        'WITHOUT_PAY': 999
+      };
+      
+      const used = {
+        'CASUAL': 0,
+        'MEDICAL': 0,
+        'MATERNITY': 0,
+        'PATERNITY': 0,
+        'SABBATICAL': 0,
+        'WITHOUT_PAY': 0
+      };
+      
+      approvedLeaves.forEach(leave => {
+        const start = new Date(leave.startDate);
+        const end = new Date(leave.endDate);
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        if (used[leave.leaveType] !== undefined) {
+          used[leave.leaveType] += diffDays;
+        }
+      });
+      
+      return Object.keys(limits).map(type => {
+        const allowed = limits[type];
+        const count = used[type];
+        return {
+          leaveType: type,
+          allowed: allowed === 999 ? 0 : allowed,
+          used: count,
+          remaining: allowed === 999 ? 999 : Math.max(0, allowed - count)
+        };
+      });
+    },
+
+    getLeaveLimit: async (_, __, context) => {
+      authorize(context);
+      let limit = await models.LeaveLimit.findOne();
+      if (!limit) {
+        limit = await models.LeaveLimit.create({
+          casual: 15,
+          medical: 10,
+          maternity: 90,
+          paternity: 15,
+          sabbatical: 30
+        });
+      }
+      return limit;
     },
 
     getLibraryBooks: async (_, { search }, context) => {
@@ -1747,7 +1903,7 @@ const resolvers = {
           approvedAt: new Date()
         },
         { new: true }
-      ).populate('userId');
+      ).populate('userId').populate('approvedBy');
 
       await models.AuditLogs.create({
         userId: context.userId,
@@ -1757,6 +1913,74 @@ const resolvers = {
       });
 
       return leave;
+    },
+
+    generatePayslip: async (_, { userId, basicSalary, month, year, allowances, deductions, paymentMethod }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'HR_STAFF', 'ACCOUNTANT', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+
+      const existing = await models.Payroll.findOne({ userId, month, year });
+      if (existing) {
+        throw new Error(`Payslip already generated for this employee for ${month}/${year}`);
+      }
+
+      let totalAllowances = 0;
+      if (allowances && allowances.length > 0) {
+        totalAllowances = allowances.reduce((sum, item) => sum + item.amount, 0);
+      }
+
+      let totalDeductions = 0;
+      if (deductions && deductions.length > 0) {
+        totalDeductions = deductions.reduce((sum, item) => sum + item.amount, 0);
+      }
+
+      const netSalary = basicSalary + totalAllowances - totalDeductions;
+
+      let payslipNo;
+      let isUnique = false;
+      while (!isUnique) {
+        payslipNo = `PS-${year}${month.toString().padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const dup = await models.Payroll.findOne({ payslipNo });
+        if (!dup) isUnique = true;
+      }
+
+      const payroll = await models.Payroll.create({
+        userId,
+        basicSalary,
+        allowances,
+        deductions,
+        netSalary,
+        month,
+        year,
+        status: 'PAID',
+        paymentMethod: paymentMethod || 'BANK_TRANSFER',
+        paymentDate: new Date(),
+        payslipNo
+      });
+
+      await models.AuditLogs.create({
+        userId: context.userId,
+        action: 'PAYROLL_GENERATION',
+        details: `Generated payslip ${payslipNo} for user ${userId} for ${month}/${year} with net salary ${netSalary}`,
+        schoolId: context.schoolId
+      });
+
+      return await models.Payroll.findById(payroll._id).populate('userId');
+    },
+
+    updateLeaveLimit: async (_, args, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'HR_STAFF']);
+      let limit = await models.LeaveLimit.findOne();
+      if (!limit) {
+        limit = new models.LeaveLimit(args);
+      } else {
+        limit.casual = args.casual;
+        limit.medical = args.medical;
+        limit.maternity = args.maternity;
+        limit.paternity = args.paternity;
+        limit.sabbatical = args.sabbatical;
+      }
+      await limit.save();
+      return limit;
     },
 
     createLibraryBook: async (_, args, context) => {
