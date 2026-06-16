@@ -8,9 +8,8 @@ const feePaymentsSchema = new mongoose.Schema(
       ref: 'Student',
       required: true
     },
-    feeId: {
+    componentId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Fees',
       required: true
     },
     amountPaid: {

@@ -198,17 +198,28 @@ const resolvers = {
       }
 
       // Fees Stats
-      const expectedFees = await models.Fees.aggregate([
-        { $group: { _id: null, total: { $sum: "$amount" } } }
+      const expectedFees = await models.StudentFeeStructure.aggregate([
+        { $unwind: "$components" },
+        { $group: { _id: null, total: { $sum: "$components.amount" } } }
       ]);
-      const totalExpected = expectedFees[0]?.total || 50000;
+      let totalExpected = expectedFees[0]?.total || 0;
+
+      // Fallback: If no student-specific structures exist, sum class fees * student counts
+      if (totalExpected === 0) {
+        const feesList = await models.Fees.find({ status: { $ne: 'DELETED' } }).lean();
+        for (const f of feesList) {
+          const count = await models.Student.countDocuments({ classId: f.classId });
+          totalExpected += (f.amount * count);
+        }
+      }
+      if (totalExpected === 0) totalExpected = 50000;
 
       const actualPayments = await models.FeePayments.aggregate([
         { $match: { status: 'PAID' } },
         { $group: { _id: null, total: { $sum: "$amountPaid" } } }
       ]);
-      const totalCollected = actualPayments[0]?.total || 32000;
-      const totalOutstanding = totalExpected - totalCollected;
+      const totalCollected = actualPayments[0]?.total || 0;
+      const totalOutstanding = Math.max(0, totalExpected - totalCollected);
 
       const upcomingExamsCount = await models.Exam.countDocuments({ startDate: { $gte: new Date() } });
 
@@ -645,7 +656,41 @@ const resolvers = {
 
     getStudentFeeStatus: async (_, { studentId }, context) => {
       authorize(context);
-      return await models.FeePayments.find({ studentId }).populate('feeId');
+      return await models.FeePayments.find({ studentId }).populate('studentId');
+    },
+
+    getStudentFeeStructure: async (_, { studentId, academicYear }, context) => {
+      authorize(context);
+      let structure = await models.StudentFeeStructure.findOne({ studentId, academicYear });
+      if (!structure) {
+        const student = await models.Student.findById(studentId);
+        if (student) {
+          const classFees = await models.Fees.find({ classId: student.classId, academicYear, status: { $ne: 'DELETED' } });
+          const defaultComponents = classFees.map(cf => ({
+            id: cf._id.toString(),
+            name: cf.title,
+            category: cf.category,
+            amount: cf.amount,
+            dueDate: cf.dueDate,
+            description: cf.description
+          }));
+          return {
+            id: 'temp-structure-id',
+            studentId,
+            academicYear,
+            components: defaultComponents,
+            status: 'ACTIVE'
+          };
+        }
+        return {
+          id: 'new-structure-id',
+          studentId,
+          academicYear,
+          components: [],
+          status: 'ACTIVE'
+        };
+      }
+      return structure;
     },
 
     getStudentFeeLedger: async (_, { classId }, context) => {
@@ -658,31 +703,68 @@ const resolvers = {
         
       if (!students.length) return [];
       
-      const fees = await models.Fees.find().lean();
-      const payments = await models.FeePayments.find({ status: { $in: ['PAID', 'PARTIAL'] } }).lean();
+      const studentIds = students.map(s => s._id);
+      const structures = await models.StudentFeeStructure.find({ studentId: { $in: studentIds } }).lean();
+      const payments = await models.FeePayments.find({ studentId: { $in: studentIds }, status: 'PAID' }).lean();
+      const classFees = await models.Fees.find({ classId: { $in: students.map(s => s.classId?._id || s.classId) }, status: { $ne: 'DELETED' } }).lean();
       
       const ledger = students.map(student => {
-        const studentClassIdStr = student.classId?._id?.toString() || student.classId?.toString() || '';
-        const studentFees = fees.filter(f => {
-          const feeClassIdStr = f.classId?._id?.toString() || f.classId?.toString() || '';
-          return feeClassIdStr === studentClassIdStr;
-        });
-        
-        const totalPayable = studentFees.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-        
         const studentIdStr = student._id.toString();
-        const studentPayments = payments.filter(p => p.studentId?.toString() === studentIdStr);
-        const totalPaid = studentPayments.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
-        const outstanding = totalPayable - totalPaid;
+        const struct = structures.find(s => s.studentId && s.studentId.toString() === studentIdStr);
+        
+        let components = [];
+        if (struct) {
+          components = struct.components || [];
+        } else {
+          const studentClassIdStr = student.classId?._id?.toString() || student.classId?.toString() || '';
+          const defaultClassFees = classFees.filter(cf => cf.classId && cf.classId.toString() === studentClassIdStr);
+          components = defaultClassFees.map(cf => ({
+            _id: cf._id,
+            name: cf.title,
+            category: cf.category,
+            amount: cf.amount,
+            dueDate: cf.dueDate,
+            description: cf.description
+          }));
+        }
+
+        const studentPayments = payments.filter(p => p.studentId && p.studentId.toString() === studentIdStr);
+
+        const componentsBreakdown = components.map(comp => {
+          const compIdStr = comp._id ? comp._id.toString() : '';
+          const compPayments = studentPayments.filter(p => {
+            if (p.componentId) {
+              return p.componentId.toString() === compIdStr;
+            }
+            if (p.feeId) {
+              return p.feeId.toString() === compIdStr;
+            }
+            return false;
+          });
+          const totalPaid = compPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+          return {
+            componentId: compIdStr,
+            name: comp.name,
+            category: comp.category,
+            totalDue: comp.amount,
+            totalPaid,
+            remaining: Math.max(0, comp.amount - totalPaid)
+          };
+        });
+
+        const totalPayable = componentsBreakdown.reduce((sum, cb) => sum + cb.totalDue, 0);
+        const totalPaid = componentsBreakdown.reduce((sum, cb) => sum + cb.totalPaid, 0);
+        const outstanding = Math.max(0, totalPayable - totalPaid);
         
         return {
-          studentId: student._id.toString(),
+          studentId: studentIdStr,
           studentName: `${student.firstName} ${student.lastName}`,
           admissionNo: student.admissionNo || '',
           className: student.classId?.name || 'Unassigned',
           totalPayable,
           totalPaid,
-          outstanding
+          outstanding,
+          componentsBreakdown
         };
       });
       
@@ -1856,28 +1938,62 @@ const resolvers = {
       return await models.Fees.findById(fee._id).populate('classId');
     },
 
+    saveStudentFeeStructure: async (_, { studentId, academicYear, components }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT']);
+      
+      let structure = await models.StudentFeeStructure.findOne({ studentId, academicYear });
+      if (!structure) {
+        structure = new models.StudentFeeStructure({
+          studentId,
+          academicYear,
+          schoolId: context.schoolId,
+          components: []
+        });
+      }
+
+      structure.components = components.map(c => ({
+        name: c.name,
+        category: c.category,
+        amount: c.amount,
+        dueDate: c.dueDate,
+        description: c.description
+      }));
+
+      await structure.save();
+
+      await models.AuditLogs.create({
+        userId: context.userId,
+        action: 'FEE_STRUCTURE_SAVE',
+        details: `Saved student-specific fee structure for student ID ${studentId} academic year ${academicYear}`,
+        schoolId: context.schoolId
+      });
+
+      return await models.StudentFeeStructure.findById(structure._id).populate('studentId');
+    },
+
     collectStudentFee: async (_, args, context) => {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT']);
       const receiptNo = `REC-${Date.now()}`;
       const pay = await models.FeePayments.create({
         studentId: args.studentId,
-        feeId: args.feeId,
+        componentId: args.feeId,
         amountPaid: args.amountPaid,
         paymentMethod: args.paymentMethod,
         referenceNo: args.referenceNo,
         remarks: args.remarks,
         receiptNo,
-        status: 'PAID'
+        status: 'PAID',
+        schoolId: context.schoolId
       });
 
       await models.AuditLogs.create({
         userId: context.userId,
         action: 'FEE_COLLECTION',
-        details: `Collected Fee amount ${args.amountPaid} from student ${args.studentId} receipt ${receiptNo}`,
+        details: `Collected Fee amount ${args.amountPaid} from student ${args.studentId} for component ID ${args.feeId} receipt ${receiptNo}`,
         schoolId: context.schoolId
       });
 
-      return await models.FeePayments.findById(pay._id).populate('feeId');
+      return pay;
     },
 
     requestLeave: async (_, args, context) => {

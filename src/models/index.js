@@ -19,6 +19,7 @@ const Grades = require('./Grades');
 const Homework = require('./Homework');
 const HomeworkSubmission = require('./HomeworkSubmission');
 const Fees = require('./Fees');
+const StudentFeeStructure = require('./StudentFeeStructure');
 const FeePayments = require('./FeePayments');
 const Notifications = require('./Notifications');
 const LeaveManagement = require('./LeaveManagement');
@@ -54,6 +55,7 @@ module.exports = {
   Homework,
   HomeworkSubmission,
   Fees,
+  StudentFeeStructure,
   FeePayments,
   Notifications,
   LeaveManagement,

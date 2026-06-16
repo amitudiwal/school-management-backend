@@ -383,10 +383,27 @@ const typeDefs = gql`
     status: String!
   }
 
+  type FeeComponent {
+    id: ID!
+    name: String!
+    category: String!
+    amount: Float!
+    dueDate: Date!
+    description: String
+  }
+
+  type StudentFeeStructure {
+    id: ID!
+    studentId: Student!
+    academicYear: String!
+    components: [FeeComponent!]!
+    status: String!
+  }
+
   type FeePayments {
     id: ID!
     studentId: Student!
-    feeId: Fees!
+    componentId: ID!
     amountPaid: Float!
     paymentDate: Date!
     paymentMethod: String!
@@ -394,6 +411,15 @@ const typeDefs = gql`
     referenceNo: String
     receiptNo: String!
     remarks: String
+  }
+
+  type ComponentBalance {
+    componentId: ID!
+    name: String!
+    category: String!
+    totalDue: Float!
+    totalPaid: Float!
+    remaining: Float!
   }
 
   type StudentFeeLedger {
@@ -404,6 +430,7 @@ const typeDefs = gql`
     totalPayable: Float!
     totalPaid: Float!
     outstanding: Float!
+    componentsBreakdown: [ComponentBalance!]!
   }
 
   # HR & Library Types
@@ -618,6 +645,14 @@ const typeDefs = gql`
     remarks: String
   }
 
+  input FeeComponentInput {
+    name: String!
+    category: String!
+    amount: Float!
+    dueDate: Date!
+    description: String
+  }
+
   type Timetable {
     id: ID!
     dayOfWeek: String!
@@ -675,6 +710,7 @@ const typeDefs = gql`
     getFeesList(classId: ID): [Fees!]!
     getStudentFeeStatus(studentId: ID!): [FeePayments!]!
     getStudentFeeLedger(classId: ID): [StudentFeeLedger!]!
+    getStudentFeeStructure(studentId: ID!, academicYear: String!): StudentFeeStructure
     getLeaveRequests: [LeaveManagement!]!
     getPayrollList: [Payroll!]!
     getTeacherAttendanceStats(teacherId: ID!, month: Int!, year: Int!): TeacherAttendanceStats!
@@ -839,6 +875,7 @@ const typeDefs = gql`
     createFeeStructure(title: String!, category: String!, amount: Float!, classId: ID!, dueDate: Date!, academicYear: String!, description: String): Fees!
     updateFeeStructure(id: ID!, title: String, category: String, amount: Float, classId: ID, dueDate: Date, academicYear: String, description: String): Fees!
     deleteFeeStructure(id: ID!): Boolean!
+    saveStudentFeeStructure(studentId: ID!, academicYear: String!, components: [FeeComponentInput!]!): StudentFeeStructure!
     collectStudentFee(studentId: ID!, feeId: ID!, amountPaid: Float!, paymentMethod: String!, referenceNo: String, remarks: String): FeePayments!
 
     # HR & Operations
