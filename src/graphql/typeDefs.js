@@ -709,7 +709,7 @@ const typeDefs = gql`
     # Finance & HR
     getFeesList(classId: ID): [Fees!]!
     getStudentFeeStatus(studentId: ID!): [FeePayments!]!
-    getStudentFeeLedger(classId: ID): [StudentFeeLedger!]!
+    getStudentFeeLedger(classId: ID, studentId: ID): [StudentFeeLedger!]!
     getStudentFeeStructure(studentId: ID!, academicYear: String!): StudentFeeStructure
     getLeaveRequests: [LeaveManagement!]!
     getPayrollList: [Payroll!]!

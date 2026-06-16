@@ -693,10 +693,16 @@ const resolvers = {
       return structure;
     },
 
-    getStudentFeeLedger: async (_, { classId }, context) => {
+    getStudentFeeLedger: async (_, { classId, studentId }, context) => {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'ACCOUNTANT']);
       
-      const studentQuery = classId ? { classId } : {};
+      const studentQuery = {};
+      if (studentId) {
+        studentQuery._id = studentId;
+      } else if (classId) {
+        studentQuery.classId = classId;
+      }
+      
       const students = await models.Student.find(studentQuery)
         .populate('classId')
         .lean();
