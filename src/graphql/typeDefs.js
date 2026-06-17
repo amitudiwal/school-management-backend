@@ -817,6 +817,7 @@ const typeDefs = gql`
       designation: String
       password: String!
       avatar: String
+      role: String
     ): Teacher!
     updateTeacher(
       id: ID!
@@ -839,6 +840,7 @@ const typeDefs = gql`
       phone: String!
       department: String!
       designation: String!
+      password: String
     ): Staff!
     updateStaff(
       id: ID!

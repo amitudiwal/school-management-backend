@@ -395,7 +395,7 @@ const resolvers = {
     },
 
     getStaffAttendance: async (_, { date }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const queryDate = new Date(date);
       queryDate.setHours(0, 0, 0, 0);
       return await models.StaffAttendance.find({ date: queryDate }).populate('staffId');
@@ -1438,7 +1438,7 @@ const resolvers = {
     },
 
     createClass: async (_, { name, code, description }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const newClass = await models.Class.create({
         name,
         code,
@@ -1456,7 +1456,7 @@ const resolvers = {
     },
 
     createSection: async (_, { classId, name, roomNumber, capacity, classTeacherId }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const section = await models.Section.create({
         classId,
         name,
@@ -1500,7 +1500,7 @@ const resolvers = {
     },
 
     registerStudent: async (_, args, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'CLASS_TEACHER']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'CLASS_TEACHER', 'ACCOUNTANT']);
       
       // Create user auth profile
       const user = await models.User.create({
@@ -1551,7 +1551,7 @@ const resolvers = {
     },
 
     updateStudent: async (_, { id, email, ...updates }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'CLASS_TEACHER']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'CLASS_TEACHER', 'ACCOUNTANT']);
 
       const student = await models.Student.findById(id).populate('userId');
       if (!student) {
@@ -1623,7 +1623,7 @@ const resolvers = {
     },
 
     deleteStudent: async (_, { id }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'CLASS_TEACHER']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'CLASS_TEACHER', 'ACCOUNTANT']);
 
       const student = await models.Student.findById(id);
       if (!student) {
@@ -1686,12 +1686,12 @@ const resolvers = {
     },
 
     registerTeacher: async (_, args, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const user = await models.User.create({
         name: `${args.firstName} ${args.lastName}`,
         email: args.email,
         password: args.password,
-        role: 'TEACHER',
+        role: args.role || 'TEACHER',
         schoolId: context.schoolId,
         avatar: args.avatar || ''
       });
@@ -1732,7 +1732,7 @@ const resolvers = {
       const user = await models.User.create({
         name: `${args.firstName} ${args.lastName}`,
         email: args.email,
-        password: 'staff_secret_pass',
+        password: args.password || 'staff_secret_pass',
         role: roleStr,
         schoolId: context.schoolId
       });
@@ -1814,7 +1814,7 @@ const resolvers = {
     },
 
     markBulkStaffAttendance: async (_, { date, records }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const queryDate = new Date(date);
       queryDate.setHours(0, 0, 0, 0);
 
@@ -1914,12 +1914,12 @@ const resolvers = {
     },
 
     createExam: async (_, args, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       return await models.Exam.create(args);
     },
 
     createExamSchedule: async (_, args, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const sched = await models.ExamSchedule.create(args);
       return await models.ExamSchedule.findById(sched._id).populate('examId').populate('subjectId').populate('classId');
     },
@@ -2181,7 +2181,7 @@ const resolvers = {
 
     // Classes
     updateClass: async (_, { id, name, code, description }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const updates = {};
       if (name !== undefined) updates.name = name;
       if (code !== undefined) updates.code = code;
@@ -2192,7 +2192,7 @@ const resolvers = {
       return cls;
     },
     deleteClass: async (_, { id }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const cls = await models.Class.findById(id);
       if (!cls) throw new GraphQLError('Class not found.');
       cls.status = 'DELETED';
@@ -2202,7 +2202,7 @@ const resolvers = {
 
     // Sections
     updateSection: async (_, { id, classId, name, roomNumber, capacity, classTeacherId }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const updates = {};
       if (classId !== undefined) updates.classId = classId;
       if (name !== undefined) updates.name = name;
@@ -2215,7 +2215,7 @@ const resolvers = {
       return sec;
     },
     deleteSection: async (_, { id }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const sec = await models.Section.findById(id);
       if (!sec) throw new GraphQLError('Section not found.');
       sec.status = 'DELETED';
@@ -2247,7 +2247,7 @@ const resolvers = {
 
     // Teachers
     updateTeacher: async (_, args, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const { id, email, firstName, lastName, gender, dateOfBirth, phone, qualification, designation } = args;
       const teacher = await models.Teacher.findById(id).populate('userId');
       if (!teacher) throw new GraphQLError('Teacher profile not found.');
@@ -2275,7 +2275,7 @@ const resolvers = {
       return await models.Teacher.findById(id).populate('userId');
     },
     deleteTeacher: async (_, { id }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const teacher = await models.Teacher.findById(id);
       if (!teacher) throw new GraphQLError('Teacher profile not found.');
 
@@ -2582,7 +2582,7 @@ const resolvers = {
     },
 
     deleteExam: async (_, { id }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const exam = await models.Exam.findById(id);
       if (!exam) throw new GraphQLError('Exam not found.');
       await models.ExamSchedule.deleteMany({ examId: id });
@@ -2591,7 +2591,7 @@ const resolvers = {
     },
 
     deleteExamSchedule: async (_, { id }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const deleted = await models.ExamSchedule.findByIdAndDelete(id);
       if (!deleted) throw new GraphQLError('Exam schedule not found.');
       return true;

@@ -36,6 +36,7 @@ const userSchema = new mongoose.Schema(
         'SCHOOL_ADMIN',
         'PRINCIPAL',
         'VICE_PRINCIPAL',
+        'SUPER_TEACHER',
         'TEACHER',
         'CLASS_TEACHER',
         'PARENT',
