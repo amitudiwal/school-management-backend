@@ -574,6 +574,30 @@ const typeDefs = gql`
     createdAt: Date!
   }
 
+  type Chapter {
+    id: ID!
+    name: String!
+    subjectId: Subject!
+    classId: Class!
+    schoolId: ID!
+    createdAt: Date!
+    updatedAt: Date!
+  }
+
+  type PendingJob {
+    id: ID!
+    teacherId: Teacher!
+    jobType: String!
+    subjectName: String
+    chapterId: Chapter
+    topicName: String
+    status: String
+    remarks: String
+    schoolId: ID!
+    createdAt: Date!
+    updatedAt: Date!
+  }
+
   # Dashboards & Analytics
   type SuperAdminDashboard {
     totalSchools: Int!
@@ -723,6 +747,8 @@ const typeDefs = gql`
     getTransportRoutes: [TransportRoute!]!
     getVehicles: [Vehicle!]!
     getInventoryList: [Inventory!]!
+    getPendingJobs: [PendingJob!]!
+    getChapters(subjectId: ID): [Chapter!]!
   }
 
   type Mutation {
@@ -900,6 +926,14 @@ const typeDefs = gql`
     deleteTimetableEntry(id: ID!): Boolean!
     deleteExam(id: ID!): Boolean!
     deleteExamSchedule(id: ID!): Boolean!
+    
+    # Pending Jobs
+    createPendingJob(jobType: String!, subjectName: String, chapterId: ID, topicName: String, status: String, remarks: String): PendingJob!
+    updatePendingJobStatus(id: ID!, status: String!): PendingJob!
+
+    # Chapters
+    createChapter(name: String!, subjectId: ID!, classId: ID!): Chapter!
+    deleteChapter(id: ID!): Boolean!
   }
 `;
 

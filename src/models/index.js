@@ -32,6 +32,8 @@ const Inventory = require('./Inventory');
 const AuditLogs = require('./AuditLogs');
 const Timetable = require('./Timetable');
 const LeaveLimit = require('./LeaveLimit');
+const PendingJob = require('./PendingJob');
+const Chapter = require('./Chapter');
 
 module.exports = {
   School,
@@ -67,5 +69,7 @@ module.exports = {
   Inventory,
   AuditLogs,
   Timetable,
-  LeaveLimit
+  LeaveLimit,
+  PendingJob,
+  Chapter
 };

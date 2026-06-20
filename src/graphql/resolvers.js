@@ -953,6 +953,40 @@ const resolvers = {
         .populate('sectionId')
         .populate('subjectId')
         .populate('teacherId');
+    },
+
+    getPendingJobs: async (_, __, context) => {
+      authorize(context);
+      if (context.role === 'TEACHER' || context.role === 'CLASS_TEACHER') {
+        const teacher = await models.Teacher.findOne({ userId: context.userId });
+        if (!teacher) return [];
+        return await models.PendingJob.find({ teacherId: teacher._id })
+          .populate({
+            path: 'teacherId',
+            populate: { path: 'userId' }
+          })
+          .populate({
+            path: 'chapterId',
+            populate: ['subjectId', 'classId']
+          })
+          .sort({ createdAt: -1 });
+      }
+      return await models.PendingJob.find()
+        .populate({
+          path: 'teacherId',
+          populate: { path: 'userId' }
+        })
+        .populate({
+          path: 'chapterId',
+          populate: ['subjectId', 'classId']
+        })
+        .sort({ createdAt: -1 });
+    },
+
+    getChapters: async (_, { subjectId }, context) => {
+      authorize(context);
+      const query = subjectId ? { subjectId } : {};
+      return await models.Chapter.find(query).populate('subjectId').populate('classId');
     }
   },
 
@@ -2437,7 +2471,7 @@ const resolvers = {
     },
 
     createTimetableEntry: async (_, args, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const { dayOfWeek, startTime, endTime, classId, sectionId, subjectId, teacherId, roomNumber } = args;
 
       const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -2500,7 +2534,7 @@ const resolvers = {
     },
 
     updateTimetableEntry: async (_, args, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const { id, dayOfWeek, startTime, endTime, classId, sectionId, subjectId, teacherId, roomNumber } = args;
 
       const entry = await models.Timetable.findById(id);
@@ -2575,7 +2609,7 @@ const resolvers = {
     },
 
     deleteTimetableEntry: async (_, { id }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const deleted = await models.Timetable.findByIdAndDelete(id);
       if (!deleted) throw new GraphQLError('Timetable entry not found.');
       return true;
@@ -2594,6 +2628,74 @@ const resolvers = {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const deleted = await models.ExamSchedule.findByIdAndDelete(id);
       if (!deleted) throw new GraphQLError('Exam schedule not found.');
+      return true;
+    },
+
+    createPendingJob: async (_, args, context) => {
+      authorize(context, ['TEACHER', 'CLASS_TEACHER']);
+      const teacher = await models.Teacher.findOne({ userId: context.userId });
+      if (!teacher) {
+        throw new GraphQLError('Teacher profile not found for this user.');
+      }
+      
+      const { jobType, subjectName, chapterId, topicName, status, remarks } = args;
+      const job = await models.PendingJob.create({
+        teacherId: teacher._id,
+        jobType,
+        subjectName,
+        chapterId: chapterId || undefined,
+        topicName,
+        status: status || 'Running',
+        remarks,
+        schoolId: context.schoolId
+      });
+      
+      return await models.PendingJob.findById(job._id)
+        .populate({
+          path: 'teacherId',
+          populate: { path: 'userId' }
+        })
+        .populate({
+          path: 'chapterId',
+          populate: ['subjectId', 'classId']
+        });
+    },
+
+    updatePendingJobStatus: async (_, { id, status }, context) => {
+      authorize(context, ['TEACHER', 'CLASS_TEACHER', 'SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      
+      const job = await models.PendingJob.findById(id);
+      if (!job) throw new GraphQLError('Pending job entry not found.');
+      
+      job.status = status;
+      await job.save();
+      
+      return await models.PendingJob.findById(job._id)
+        .populate({
+          path: 'teacherId',
+          populate: { path: 'userId' }
+        })
+        .populate({
+          path: 'chapterId',
+          populate: ['subjectId', 'classId']
+        });
+    },
+
+    createChapter: async (_, { name, subjectId, classId }, context) => {
+      authorize(context, ['TEACHER', 'CLASS_TEACHER', 'SUPER_TEACHER']);
+      const chapter = await models.Chapter.create({
+        name,
+        subjectId,
+        classId,
+        schoolId: context.schoolId
+      });
+      return await models.Chapter.findById(chapter._id).populate('subjectId').populate('classId');
+    },
+
+    deleteChapter: async (_, { id }, context) => {
+      authorize(context, ['TEACHER', 'CLASS_TEACHER', 'SUPER_TEACHER']);
+      const deleted = await models.Chapter.findByIdAndDelete(id);
+      if (!deleted) throw new GraphQLError('Chapter not found.');
       return true;
     }
   }
