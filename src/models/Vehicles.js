@@ -26,6 +26,22 @@ const vehiclesSchema = new mongoose.Schema(
     routeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TransportRoutes'
+    },
+    status: {
+      type: String,
+      default: 'Inactive'
+    },
+    currentLatitude: {
+      type: Number,
+      default: 28.6139
+    },
+    currentLongitude: {
+      type: Number,
+      default: 77.2090
+    },
+    lastUpdated: {
+      type: Date,
+      default: Date.now
     }
   },
   {

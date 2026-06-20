@@ -2198,6 +2198,20 @@ const resolvers = {
       return await models.Vehicles.findById(vehicle._id).populate('routeId');
     },
 
+    updateVehicleLocation: async (_, { id, latitude, longitude, status }, context) => {
+      authorize(context);
+      const vehicle = await models.Vehicles.findById(id);
+      if (!vehicle) {
+        throw new Error('Vehicle not found');
+      }
+      vehicle.currentLatitude = latitude;
+      vehicle.currentLongitude = longitude;
+      vehicle.status = status;
+      vehicle.lastUpdated = new Date();
+      await vehicle.save();
+      return await models.Vehicles.findById(id).populate('routeId');
+    },
+
     addInventoryItem: async (_, args, context) => {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'HR_STAFF', 'ACCOUNTANT']);
       return await models.Inventory.create({

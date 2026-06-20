@@ -551,6 +551,9 @@ const typeDefs = gql`
     driverPhone: String!
     routeId: TransportRoute
     status: String!
+    currentLatitude: Float
+    currentLongitude: Float
+    lastUpdated: Date
   }
 
   type Inventory {
@@ -918,6 +921,7 @@ const typeDefs = gql`
     returnLibraryBook(issueId: ID!, fineAmount: Float, finePaidStatus: String): BookIssue!
     createTransportRoute(routeName: String!, startLocation: String!, endLocation: String!, stops: [StopInput!], routeFee: Float!): TransportRoute!
     createVehicle(vehicleNo: String!, model: String, capacity: Int!, driverName: String!, driverPhone: String!, routeId: ID): Vehicle!
+    updateVehicleLocation(id: ID!, latitude: Float!, longitude: Float!, status: String!): Vehicle!
     addInventoryItem(itemName: String!, category: String!, quantity: Int!, unitPrice: Float, vendorName: String, purchaseDate: Date): Inventory!
 
     # Timetable
