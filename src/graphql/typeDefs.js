@@ -411,6 +411,7 @@ const typeDefs = gql`
     referenceNo: String
     receiptNo: String!
     remarks: String
+    feeId: Fees
   }
 
   type ComponentBalance {
@@ -798,6 +799,12 @@ const typeDefs = gql`
       address: AddressInput
       medicalInfo: MedicalInfoInput
       avatar: String
+      parentEmail: String
+      parentFirstName: String
+      parentLastName: String
+      parentRelation: String
+      parentPhone: String
+      parentPassword: String
     ): Student!
     updateStudent(
       id: ID!

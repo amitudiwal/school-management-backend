@@ -161,9 +161,9 @@ const resolvers = {
       const presentCount = await models.Attendance.countDocuments({ date: targetDate, status: 'PRESENT' });
       const lateCount = await models.Attendance.countDocuments({ date: targetDate, status: 'LATE' });
       
-      let presentPercent = 95.0; // Default fallback
-      let absentPercent = 3.0;
-      let latePercent = 2.0;
+      let presentPercent = 0.0; // Default fallback when no records
+      let absentPercent = 0.0;
+      let latePercent = 0.0;
 
       if (totalAttendanceCount > 0) {
         presentPercent = (presentCount / totalAttendanceCount) * 100;
@@ -173,9 +173,9 @@ const resolvers = {
 
       // Teacher Attendance
       const totalTeacherAttendance = await models.TeacherAttendance.countDocuments({ date: targetDate });
-      let teacherPresentPercent = 98.0; // Default fallback
-      let teacherAbsentPercent = 1.0;
-      let teacherLatePercent = 1.0;
+      let teacherPresentPercent = 0.0; // Default fallback when no records
+      let teacherAbsentPercent = 0.0;
+      let teacherLatePercent = 0.0;
       if (totalTeacherAttendance > 0) {
         const teacherPresentCount = await models.TeacherAttendance.countDocuments({ date: targetDate, status: 'PRESENT' });
         const teacherLateCount = await models.TeacherAttendance.countDocuments({ date: targetDate, status: 'LATE' });
@@ -186,9 +186,9 @@ const resolvers = {
 
       // Staff Attendance
       const totalStaffAttendance = await models.StaffAttendance.countDocuments({ date: targetDate });
-      let staffPresentPercent = 96.0; // Default fallback
-      let staffAbsentPercent = 2.0;
-      let staffLatePercent = 2.0;
+      let staffPresentPercent = 0.0; // Default fallback when no records
+      let staffAbsentPercent = 0.0;
+      let staffLatePercent = 0.0;
       if (totalStaffAttendance > 0) {
         const staffPresentCount = await models.StaffAttendance.countDocuments({ date: targetDate, status: 'PRESENT' });
         const staffLateCount = await models.StaffAttendance.countDocuments({ date: targetDate, status: 'LATE' });
@@ -363,7 +363,7 @@ const resolvers = {
     },
 
     getStudentAttendance: async (_, { classId, sectionId, date }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'CLASS_TEACHER', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'CLASS_TEACHER', 'SUPER_TEACHER', 'PRINCIPAL', 'VICE_PRINCIPAL']);
       const queryDate = new Date(date);
       queryDate.setHours(0, 0, 0, 0);
       return await models.Attendance.find({
@@ -388,7 +388,7 @@ const resolvers = {
     },
 
     getTeacherAttendance: async (_, { date }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const queryDate = new Date(date);
       queryDate.setHours(0, 0, 0, 0);
       return await models.TeacherAttendance.find({ date: queryDate }).populate('teacherId');
@@ -1536,7 +1536,59 @@ const resolvers = {
     registerStudent: async (_, args, context) => {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'CLASS_TEACHER', 'ACCOUNTANT']);
       
-      // Create user auth profile
+      let parentId = args.parentId;
+
+      // Create Parent credentials and profile simultaneously if details are provided
+      if (args.parentEmail && args.parentFirstName && args.parentLastName && args.parentRelation && args.parentPhone) {
+        const cleanParentEmail = args.parentEmail.trim().toLowerCase();
+
+        // Check if Parent User already exists (emails are globally unique)
+        let parentUser = await runWithTenantContext({ bypassTenantFilter: true }, async () => {
+          return await models.User.findOne({ email: cleanParentEmail });
+        });
+
+        let parent;
+        if (parentUser) {
+          parent = await models.Parent.findOne({ userId: parentUser._id });
+          if (!parent) {
+            // Create Parent profile if User exists but Parent record was missing
+            parent = await models.Parent.create({
+              userId: parentUser._id,
+              firstName: args.parentFirstName,
+              lastName: args.parentLastName,
+              relation: args.parentRelation,
+              phone: args.parentPhone,
+              email: cleanParentEmail,
+              address: args.address
+            });
+          }
+        } else {
+          // Create parent user credentials
+          parentUser = await models.User.create({
+            name: `${args.parentFirstName} ${args.parentLastName}`,
+            email: cleanParentEmail,
+            password: args.parentPassword || args.parentPhone || 'parent_secret_pass',
+            role: 'PARENT',
+            schoolId: context.schoolId,
+            phone: args.parentPhone
+          });
+
+          // Create parent profile
+          parent = await models.Parent.create({
+            userId: parentUser._id,
+            firstName: args.parentFirstName,
+            lastName: args.parentLastName,
+            relation: args.parentRelation,
+            phone: args.parentPhone,
+            email: cleanParentEmail,
+            address: args.address
+          });
+        }
+
+        parentId = parent._id;
+      }
+
+      // Create user auth profile for student
       const user = await models.User.create({
         name: `${args.firstName} ${args.lastName}`,
         email: args.email,
@@ -1556,13 +1608,13 @@ const resolvers = {
         dateOfBirth: args.dateOfBirth,
         classId: args.classId,
         sectionId: args.sectionId,
-        parentId: args.parentId,
+        parentId: parentId,
         address: args.address,
         medicalInfo: args.medicalInfo
       });
 
-      if (args.parentId) {
-        await models.Parent.findByIdAndUpdate(args.parentId, {
+      if (parentId) {
+        await models.Parent.findByIdAndUpdate(parentId, {
           $addToSet: { children: student._id }
         });
       }
@@ -1787,7 +1839,7 @@ const resolvers = {
     },
 
     markBulkAttendance: async (_, { classId, sectionId, date, records }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'CLASS_TEACHER']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'CLASS_TEACHER', 'SUPER_TEACHER']);
       const queryDate = new Date(date);
       queryDate.setHours(0, 0, 0, 0);
 
@@ -1819,7 +1871,7 @@ const resolvers = {
     },
 
     markBulkTeacherAttendance: async (_, { date, records }, context) => {
-      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const queryDate = new Date(date);
       queryDate.setHours(0, 0, 0, 0);
 
@@ -2711,6 +2763,13 @@ const resolvers = {
       const deleted = await models.Chapter.findByIdAndDelete(id);
       if (!deleted) throw new GraphQLError('Chapter not found.');
       return true;
+    }
+  },
+
+  FeePayments: {
+    feeId: async (parent) => {
+      if (!parent.componentId) return null;
+      return await models.Fees.findById(parent.componentId);
     }
   }
 };
