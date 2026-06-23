@@ -77,6 +77,29 @@ const typeDefs = gql`
     subscriptionStatus: String
     status: String!
     createdAt: Date!
+    settings: SchoolSettings
+  }
+
+  type RolePermissions {
+    SUPER_TEACHER: [String!]!
+    ACCOUNTANT: [String!]!
+    TEACHER: [String!]!
+    PARENT: [String!]!
+  }
+
+  type SchoolSettings {
+    academicYearStart: String
+    academicYearEnd: String
+    currency: String
+    timezone: String
+    featurePermissions: RolePermissions!
+  }
+
+  input RolePermissionsInput {
+    SUPER_TEACHER: [String!]!
+    ACCOUNTANT: [String!]!
+    TEACHER: [String!]!
+    PARENT: [String!]!
   }
 
   # Academic Types
@@ -945,6 +968,9 @@ const typeDefs = gql`
     # Chapters
     createChapter(name: String!, subjectId: ID!, classId: ID!): Chapter!
     deleteChapter(id: ID!): Boolean!
+    
+    # Feature Permissions
+    updateSchoolPermissions(schoolId: ID!, permissions: RolePermissionsInput!): School!
   }
 `;
 

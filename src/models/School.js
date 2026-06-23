@@ -71,7 +71,16 @@ const schoolSchema = new mongoose.Schema(
       academicYearStart: { type: String, default: '04-01' }, // MM-DD format
       academicYearEnd: { type: String, default: '03-31' },   // MM-DD format
       currency: { type: String, default: 'USD' },
-      timezone: { type: String, default: 'UTC' }
+      timezone: { type: String, default: 'UTC' },
+      featurePermissions: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {
+          SUPER_TEACHER: ['teachers', 'classes', 'timetable', 'exams', 'staff-attendance', 'leaves'],
+          ACCOUNTANT: ['students', 'fees', 'payroll'],
+          TEACHER: ['pending-jobs', 'timetable', 'bus-tracker', 'attendance', 'leaves', 'homework', 'grades', 'analytics', 'payroll'],
+          PARENT: ['parent-portal', 'bus-tracker']
+        }
+      }
     },
     status: {
       type: String,

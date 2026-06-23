@@ -221,6 +221,32 @@ const seed = async () => {
         email: 'parent@sunrise.com'
       });
 
+      // Seed Sunrise student and teacher attendance for today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const sunriseStudents = await models.Student.find({ schoolId: schoolSunrise._id });
+      const sunriseTeachers = await models.Teacher.find({ schoolId: schoolSunrise._id });
+      
+      for (const s of sunriseStudents) {
+        await models.Attendance.create({
+          studentId: s._id,
+          classId: s.classId,
+          sectionId: s.sectionId,
+          date: today,
+          status: 'PRESENT',
+          schoolId: schoolSunrise._id
+        });
+      }
+      for (const t of sunriseTeachers) {
+        await models.TeacherAttendance.create({
+          teacherId: t._id,
+          date: today,
+          status: 'PRESENT',
+          checkIn: '08:15 AM',
+          schoolId: schoolSunrise._id
+        });
+      }
+
       console.log('Sunrise Public School specific data seeded.');
     });
 
@@ -406,6 +432,7 @@ const seed = async () => {
       await models.FeePayments.create({
         studentId: student._id,
         feeId: tuitionFee._id,
+        componentId: tuitionFee._id,
         amountPaid: 1500,
         paymentMethod: 'ONLINE',
         status: 'PAID',
@@ -622,6 +649,58 @@ const seed = async () => {
             roomNo: 'Exam Hall B'
           });
         }
+      }
+
+      // Seed student, teacher, and staff attendance for today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Student Attendance (Greenwood)
+      const students = await models.Student.find({ schoolId: school._id });
+      const studentStatuses = ['PRESENT', 'PRESENT', 'PRESENT', 'PRESENT', 'ABSENT', 'LATE', 'PRESENT', 'PRESENT'];
+      for (let i = 0; i < students.length; i++) {
+        const s = students[i];
+        await models.Attendance.create({
+          studentId: s._id,
+          classId: s.classId,
+          sectionId: s.sectionId,
+          date: today,
+          status: studentStatuses[i % studentStatuses.length],
+          remarks: i % 5 === 0 ? 'Late check-in' : '',
+          schoolId: school._id
+        });
+      }
+
+      // Teacher Attendance (Greenwood)
+      const teachers = await models.Teacher.find({ schoolId: school._id });
+      const teacherStatuses = ['PRESENT', 'PRESENT', 'PRESENT', 'HALF_DAY', 'PRESENT', 'PRESENT', 'LEAVE', 'ABSENT'];
+      for (let i = 0; i < teachers.length; i++) {
+        const t = teachers[i];
+        await models.TeacherAttendance.create({
+          teacherId: t._id,
+          date: today,
+          status: teacherStatuses[i % teacherStatuses.length],
+          checkIn: '08:30 AM',
+          checkOut: '04:30 PM',
+          remarks: i % 4 === 0 ? 'Permitted late entry' : '',
+          schoolId: school._id
+        });
+      }
+
+      // Staff Attendance (Greenwood)
+      const staffList = await models.Staff.find({ schoolId: school._id });
+      const staffStatuses = ['PRESENT', 'PRESENT', 'PRESENT', 'ABSENT'];
+      for (let i = 0; i < staffList.length; i++) {
+        const st = staffList[i];
+        await models.StaffAttendance.create({
+          staffId: st._id,
+          date: today,
+          status: staffStatuses[i % staffStatuses.length],
+          checkIn: '09:00 AM',
+          checkOut: '05:00 PM',
+          remarks: '',
+          schoolId: school._id
+        });
       }
 
       console.log('Greenwood School Specific Mock Data Seeded successfully.');

@@ -178,9 +178,9 @@ const resolvers = {
       let teacherLatePercent = 0.0;
       if (totalTeacherAttendance > 0) {
         const teacherPresentCount = await models.TeacherAttendance.countDocuments({ date: targetDate, status: 'PRESENT' });
-        const teacherLateCount = await models.TeacherAttendance.countDocuments({ date: targetDate, status: 'LATE' });
+        const teacherHalfDayCount = await models.TeacherAttendance.countDocuments({ date: targetDate, status: 'HALF_DAY' });
         teacherPresentPercent = (teacherPresentCount / totalTeacherAttendance) * 100;
-        teacherLatePercent = (teacherLateCount / totalTeacherAttendance) * 100;
+        teacherLatePercent = (teacherHalfDayCount / totalTeacherAttendance) * 100;
         teacherAbsentPercent = 100 - teacherPresentPercent - teacherLatePercent;
       }
 
@@ -191,9 +191,9 @@ const resolvers = {
       let staffLatePercent = 0.0;
       if (totalStaffAttendance > 0) {
         const staffPresentCount = await models.StaffAttendance.countDocuments({ date: targetDate, status: 'PRESENT' });
-        const staffLateCount = await models.StaffAttendance.countDocuments({ date: targetDate, status: 'LATE' });
+        const staffHalfDayCount = await models.StaffAttendance.countDocuments({ date: targetDate, status: 'HALF_DAY' });
         staffPresentPercent = (staffPresentCount / totalStaffAttendance) * 100;
-        staffLatePercent = (staffLateCount / totalStaffAttendance) * 100;
+        staffLatePercent = (staffHalfDayCount / totalStaffAttendance) * 100;
         staffAbsentPercent = 100 - staffPresentPercent - staffLatePercent;
       }
 
@@ -2763,6 +2763,70 @@ const resolvers = {
       const deleted = await models.Chapter.findByIdAndDelete(id);
       if (!deleted) throw new GraphQLError('Chapter not found.');
       return true;
+    },
+
+    updateSchoolPermissions: async (_, { schoolId, permissions }, context) => {
+      authorize(context, ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_ADMIN']);
+      
+      if (context.role !== 'SUPER_ADMIN') {
+        if (!context.schoolId || context.schoolId.toString() !== schoolId) {
+          throw new GraphQLError('Access denied. You can only update permissions for your own school.');
+        }
+      }
+      
+      const school = await models.School.findById(schoolId);
+      if (!school) throw new Error('School not found.');
+      
+      if (!school.settings) {
+        school.settings = {};
+      }
+      
+      school.settings.featurePermissions = {
+        SUPER_TEACHER: permissions.SUPER_TEACHER,
+        ACCOUNTANT: permissions.ACCOUNTANT,
+        TEACHER: permissions.TEACHER,
+        PARENT: permissions.PARENT,
+      };
+      
+      school.markModified('settings');
+      await school.save();
+      
+      await models.AuditLogs.create({
+        userId: context.userId,
+        action: 'SCHOOL_PERMISSIONS_UPDATE',
+        details: `Updated school feature permissions.`,
+        schoolId: school._id
+      });
+      
+      return school;
+    }
+  },
+
+  School: {
+    settings: (school) => {
+      const settings = school.settings || {};
+      const DEFAULT_PERMISSIONS = {
+        SUPER_TEACHER: ['teachers', 'classes', 'timetable', 'exams', 'staff-attendance', 'leaves'],
+        ACCOUNTANT: ['students', 'fees', 'payroll'],
+        TEACHER: ['pending-jobs', 'timetable', 'bus-tracker', 'attendance', 'leaves', 'homework', 'grades', 'analytics', 'payroll'],
+        PARENT: ['parent-portal', 'bus-tracker']
+      };
+
+      const rawPerms = settings.featurePermissions || {};
+      const featurePermissions = {
+        SUPER_TEACHER: rawPerms.SUPER_TEACHER || DEFAULT_PERMISSIONS.SUPER_TEACHER,
+        ACCOUNTANT: rawPerms.ACCOUNTANT || DEFAULT_PERMISSIONS.ACCOUNTANT,
+        TEACHER: rawPerms.TEACHER || DEFAULT_PERMISSIONS.TEACHER,
+        PARENT: rawPerms.PARENT || DEFAULT_PERMISSIONS.PARENT,
+      };
+
+      return {
+        academicYearStart: settings.academicYearStart,
+        academicYearEnd: settings.academicYearEnd,
+        currency: settings.currency,
+        timezone: settings.timezone,
+        featurePermissions
+      };
     }
   },
 
