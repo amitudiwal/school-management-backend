@@ -393,6 +393,22 @@ const typeDefs = gql`
     feedback: String
   }
 
+  type CopySubmission {
+    id: ID!
+    studentId: Student!
+    subjectId: Subject!
+    classId: Class!
+    sectionId: Section!
+    isCompleted: Boolean!
+    remarks: String
+  }
+
+  input CopySubmissionInput {
+    studentId: ID!
+    isCompleted: Boolean!
+    remarks: String
+  }
+
   # Fees Types
   type Fees {
     id: ID!
@@ -652,6 +668,38 @@ const typeDefs = gql`
     count: Int!
   }
 
+  type AbsentTeacher {
+    id: ID!
+    firstName: String!
+    lastName: String!
+    status: String!
+    remarks: String
+  }
+
+  type CopySubmissionAnalyticPoint {
+    className: String!
+    subjectName: String!
+    completedCount: Int!
+    totalCount: Int!
+    completionRate: Float!
+  }
+
+  type LibraryStats {
+    totalBooks: Int!
+    totalIssuedBooks: Int!
+  }
+
+  type LeaveStatsSummary {
+    pendingCount: Int!
+    approvedCount: Int!
+    rejectedCount: Int!
+  }
+
+  type HomeworkStatsSummary {
+    totalHomework: Int!
+    totalSubmissions: Int!
+  }
+
   type SchoolAdminDashboard {
     studentCount: Int!
     teacherCount: Int!
@@ -663,6 +711,11 @@ const typeDefs = gql`
     classEnrollmentSummary: [ClassEnrollmentPoint!]!
     gradeDistribution: [GradeDistributionPoint!]!
     upcomingExamsCount: Int!
+    absentTeachers: [AbsentTeacher!]!
+    copySubmissionSummary: [CopySubmissionAnalyticPoint!]!
+    libraryStats: LibraryStats!
+    leaveStats: LeaveStatsSummary!
+    homeworkStats: HomeworkStatsSummary!
   }
 
   type AttendanceSummary {
@@ -756,6 +809,7 @@ const typeDefs = gql`
     getHomeworkSubmissions(homeworkId: ID!): [HomeworkSubmission!]!
     getClassPerformanceAnalytics(classId: ID!, examId: ID!, sectionId: ID): ClassPerformanceAnalytics!
     getGrades: [Grades!]!
+    getCopySubmissions(classId: ID!, sectionId: ID!, subjectId: ID!): [CopySubmission!]!
 
     # Finance & HR
     getFeesList(classId: ID): [Fees!]!
@@ -926,6 +980,7 @@ const typeDefs = gql`
     deleteHomework(id: ID!): Boolean!
     submitHomework(homeworkId: ID!, studentId: ID!, submissionText: String, attachments: [DocumentInput]): HomeworkSubmission!
     gradeHomework(submissionId: ID!, gradePoints: Float!, feedback: String!): HomeworkSubmission!
+    saveCopySubmissions(classId: ID!, sectionId: ID!, subjectId: ID!, submissions: [CopySubmissionInput!]!): Boolean!
 
     # Exams & Marks
     createExam(name: String!, academicYear: String!, startDate: Date, endDate: Date, description: String): Exam!

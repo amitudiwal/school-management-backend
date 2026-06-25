@@ -34,6 +34,7 @@ const Timetable = require('./Timetable');
 const LeaveLimit = require('./LeaveLimit');
 const PendingJob = require('./PendingJob');
 const Chapter = require('./Chapter');
+const CopySubmission = require('./CopySubmission');
 
 module.exports = {
   School,
@@ -71,5 +72,6 @@ module.exports = {
   Timetable,
   LeaveLimit,
   PendingJob,
-  Chapter
+  Chapter,
+  CopySubmission
 };

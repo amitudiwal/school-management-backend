@@ -40,33 +40,45 @@ const drawReportCardPage = async (doc, student, exam, school, grades, isMultiPag
   for (const sched of examSchedules) {
     if (!sched.subjectId) continue;
     const markRec = marks.find(m => m.subjectId.toString() === sched.subjectId._id.toString());
-    const obtained = markRec ? markRec.marksObtained : 0;
-    const percentage = sched.maxMarks > 0 ? (obtained / sched.maxMarks) * 100 : 0;
     
-    // Find subject grade
-    const subGrade = getGradeForPercentage(percentage, grades);
-    const passed = obtained >= sched.passMarks;
+    if (markRec) {
+      const obtained = markRec.marksObtained;
+      const percentage = sched.maxMarks > 0 ? (obtained / sched.maxMarks) * 100 : 0;
+      const subGrade = getGradeForPercentage(percentage, grades);
+      const passed = obtained >= sched.passMarks;
 
-    totalObtained += obtained;
-    totalMax += sched.maxMarks;
+      totalObtained += obtained;
+      totalMax += sched.maxMarks;
 
-    subjectsData.push({
-      subjectName: sched.subjectId.name,
-      maxMarks: sched.maxMarks,
-      passMarks: sched.passMarks,
-      marksObtained: obtained,
-      grade: subGrade,
-      remarks: markRec ? (markRec.remarks || '-') : '-',
-      status: passed ? 'PASS' : 'FAIL'
-    });
+      subjectsData.push({
+        subjectName: sched.subjectId.name,
+        maxMarks: sched.maxMarks,
+        passMarks: sched.passMarks,
+        marksObtained: obtained,
+        grade: subGrade,
+        remarks: markRec.remarks || '-',
+        status: passed ? 'PASS' : 'FAIL'
+      });
+    } else {
+      subjectsData.push({
+        subjectName: sched.subjectId.name,
+        maxMarks: sched.maxMarks,
+        passMarks: sched.passMarks,
+        marksObtained: 'N/A',
+        grade: 'N/A',
+        remarks: '-',
+        status: 'PENDING'
+      });
+    }
   }
 
   // 3. Calculate final stats
   const finalPercentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
-  const finalGrade = getGradeForPercentage(finalPercentage, grades);
-  const isStruggling = finalPercentage < 40;
+  const finalGrade = totalMax > 0 ? getGradeForPercentage(finalPercentage, grades) : 'N/A';
+  const isStruggling = totalMax > 0 && finalPercentage < 40;
   const passedAll = subjectsData.length > 0 && subjectsData.every(s => s.status === 'PASS');
-  const finalStatus = passedAll ? 'PASSED' : 'FAILED';
+  const hasPending = subjectsData.some(s => s.status === 'PENDING');
+  const finalStatus = hasPending ? 'INCOMPLETE' : (passedAll ? 'PASSED' : 'FAILED');
 
   // 4. Homework analytics integration
   const totalHomework = await models.Homework.countDocuments({ classId: student.classId._id, sectionId: student.sectionId._id });
@@ -189,6 +201,8 @@ const drawReportCardPage = async (doc, student, exam, school, grades, isMultiPag
       // Status Color coding
       if (sub.status === 'PASS') {
         doc.fillColor('#10B981').font('Helvetica-Bold').text('PASS', 515, currentY + 5, { width: 40, align: 'center' }).font('Helvetica');
+      } else if (sub.status === 'PENDING') {
+        doc.fillColor('#64748B').font('Helvetica-Bold').text('PEND', 515, currentY + 5, { width: 40, align: 'center' }).font('Helvetica');
       } else {
         doc.fillColor('#EF4444').font('Helvetica-Bold').text('FAIL', 515, currentY + 5, { width: 40, align: 'center' }).font('Helvetica');
       }
@@ -205,9 +219,9 @@ const drawReportCardPage = async (doc, student, exam, school, grades, isMultiPag
   doc.fillColor('#1E293B').fontSize(9).font('Helvetica');
   
   doc.text('Total Marks:', 55, summaryY + 12);
-  doc.font('Helvetica-Bold').text(`${totalObtained} / ${totalMax}`, 135, summaryY + 12);
+  doc.font('Helvetica-Bold').text(totalMax > 0 ? `${totalObtained} / ${totalMax}` : 'N/A', 135, summaryY + 12);
   doc.font('Helvetica').text('Percentage:', 55, 30 + summaryY);
-  doc.font('Helvetica-Bold').text(`${finalPercentage.toFixed(2)}%`, 135, 30 + summaryY);
+  doc.font('Helvetica-Bold').text(totalMax > 0 ? `${finalPercentage.toFixed(2)}%` : 'N/A', 135, 30 + summaryY);
   doc.font('Helvetica').text('Final Grade:', 55, 48 + summaryY);
   doc.font('Helvetica-Bold').text(finalGrade, 135, 48 + summaryY);
 
@@ -219,6 +233,8 @@ const drawReportCardPage = async (doc, student, exam, school, grades, isMultiPag
   doc.font('Helvetica').text('Final Status:', 305, summaryY + 48);
   if (finalStatus === 'PASSED') {
     doc.fillColor('#10B981').font('Helvetica-Bold').text('PASSED', 435, summaryY + 48);
+  } else if (finalStatus === 'INCOMPLETE') {
+    doc.fillColor('#64748B').font('Helvetica-Bold').text('INCOMPLETE', 435, summaryY + 48);
   } else {
     doc.fillColor('#EF4444').font('Helvetica-Bold').text('FAILED (SUPPL.)', 435, summaryY + 48);
   }
