@@ -158,6 +158,36 @@ const typeDefs = gql`
     medicalInfo: MedicalInfo
     documents: [Document]
     status: String!
+    branch: String
+    category: String
+    mobileNumber: String
+    house: String
+    height: Float
+    weight: Float
+    apaarId: String
+    rteNumber: String
+    penNumber: String
+    aadhaarFront: String
+    aadhaarBack: String
+    permanentAddress: String
+    fatherOccupation: String
+    motherName: String
+    motherOccupation: String
+    motherPhone: String
+    guardianName: String
+    guardianPhone: String
+    admissionFee: Float
+    tuitionFee: Float
+    transportFee: Float
+    hostelFee: Float
+    otherFee: Float
+    dueDate: Date
+    totalDiscount: Float
+    discountType: String
+    installmentPlan: String
+    prevSchoolName: String
+    prevClass: String
+    passingYear: String
   }
 
   type MedicalInfo {
@@ -787,7 +817,7 @@ const typeDefs = gql`
     getGlobalAuditLogs: [AuditLog!]!
 
     # School Config & Admin
-    getSchoolAdminDashboard(date: Date): SchoolAdminDashboard!
+    getSchoolAdminDashboard(startDate: Date, endDate: Date): SchoolAdminDashboard!
     getClasses: [Class!]!
     getSections(classId: ID): [Section!]!
     getSubjects(classId: ID): [Subject!]!
@@ -894,6 +924,37 @@ const typeDefs = gql`
       parentRelation: String
       parentPhone: String
       parentPassword: String
+      branch: String
+      category: String
+      mobileNumber: String
+      house: String
+      height: Float
+      weight: Float
+      apaarId: String
+      rteNumber: String
+      penNumber: String
+      aadhaarFront: String
+      aadhaarBack: String
+      permanentAddress: String
+      fatherOccupation: String
+      motherName: String
+      motherOccupation: String
+      motherPhone: String
+      guardianName: String
+      guardianPhone: String
+      admissionFee: Float
+      tuitionFee: Float
+      transportFee: Float
+      hostelFee: Float
+      otherFee: Float
+      dueDate: Date
+      totalDiscount: Float
+      discountType: String
+      installmentPlan: String
+      prevSchoolName: String
+      prevClass: String
+      passingYear: String
+      bloodGroup: String
     ): Student!
     updateStudent(
       id: ID!
@@ -907,6 +968,37 @@ const typeDefs = gql`
       classId: ID
       sectionId: ID
       parentId: ID
+      branch: String
+      category: String
+      mobileNumber: String
+      house: String
+      height: Float
+      weight: Float
+      apaarId: String
+      rteNumber: String
+      penNumber: String
+      aadhaarFront: String
+      aadhaarBack: String
+      permanentAddress: String
+      fatherOccupation: String
+      motherName: String
+      motherOccupation: String
+      motherPhone: String
+      guardianName: String
+      guardianPhone: String
+      admissionFee: Float
+      tuitionFee: Float
+      transportFee: Float
+      hostelFee: Float
+      otherFee: Float
+      dueDate: Date
+      totalDiscount: Float
+      discountType: String
+      installmentPlan: String
+      prevSchoolName: String
+      prevClass: String
+      passingYear: String
+      bloodGroup: String
     ): Student!
     deleteStudent(id: ID!): Boolean!
     

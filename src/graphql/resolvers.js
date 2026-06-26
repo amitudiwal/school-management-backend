@@ -145,7 +145,7 @@ const resolvers = {
       return await models.AuditLogs.find().populate('userId').sort({ createdAt: -1 }).limit(100);
     },
 
-    getSchoolAdminDashboard: async (_, { date }, context) => {
+    getSchoolAdminDashboard: async (_, { startDate, endDate }, context) => {
       authorize(context, ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
       
       const studentCount = await models.Student.countDocuments();
@@ -153,13 +153,16 @@ const resolvers = {
       const staffCount = await models.Staff.countDocuments();
       
       // Attendance Stats
-      const targetDate = date ? new Date(date) : new Date();
-      targetDate.setHours(0, 0, 0, 0);
+      const start = startDate ? new Date(startDate) : new Date();
+      start.setHours(0, 0, 0, 0);
+      
+      const end = endDate ? new Date(endDate) : new Date();
+      end.setHours(0, 0, 0, 0);
       
       // Student Attendance
-      const totalAttendanceCount = await models.Attendance.countDocuments({ date: targetDate });
-      const presentCount = await models.Attendance.countDocuments({ date: targetDate, status: 'PRESENT' });
-      const lateCount = await models.Attendance.countDocuments({ date: targetDate, status: 'LATE' });
+      const totalAttendanceCount = await models.Attendance.countDocuments({ date: { $gte: start, $lte: end } });
+      const presentCount = await models.Attendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' });
+      const lateCount = await models.Attendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'LATE' });
       
       let presentPercent = 0.0; // Default fallback when no records
       let absentPercent = 0.0;
@@ -172,26 +175,26 @@ const resolvers = {
       }
 
       // Teacher Attendance
-      const totalTeacherAttendance = await models.TeacherAttendance.countDocuments({ date: targetDate });
+      const totalTeacherAttendance = await models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end } });
       let teacherPresentPercent = 0.0; // Default fallback when no records
       let teacherAbsentPercent = 0.0;
       let teacherLatePercent = 0.0;
       if (totalTeacherAttendance > 0) {
-        const teacherPresentCount = await models.TeacherAttendance.countDocuments({ date: targetDate, status: 'PRESENT' });
-        const teacherHalfDayCount = await models.TeacherAttendance.countDocuments({ date: targetDate, status: 'HALF_DAY' });
+        const teacherPresentCount = await models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' });
+        const teacherHalfDayCount = await models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'HALF_DAY' });
         teacherPresentPercent = (teacherPresentCount / totalTeacherAttendance) * 100;
         teacherLatePercent = (teacherHalfDayCount / totalTeacherAttendance) * 100;
         teacherAbsentPercent = 100 - teacherPresentPercent - teacherLatePercent;
       }
 
       // Staff Attendance
-      const totalStaffAttendance = await models.StaffAttendance.countDocuments({ date: targetDate });
+      const totalStaffAttendance = await models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end } });
       let staffPresentPercent = 0.0; // Default fallback when no records
       let staffAbsentPercent = 0.0;
       let staffLatePercent = 0.0;
       if (totalStaffAttendance > 0) {
-        const staffPresentCount = await models.StaffAttendance.countDocuments({ date: targetDate, status: 'PRESENT' });
-        const staffHalfDayCount = await models.StaffAttendance.countDocuments({ date: targetDate, status: 'HALF_DAY' });
+        const staffPresentCount = await models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' });
+        const staffHalfDayCount = await models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'HALF_DAY' });
         staffPresentPercent = (staffPresentCount / totalStaffAttendance) * 100;
         staffLatePercent = (staffHalfDayCount / totalStaffAttendance) * 100;
         staffAbsentPercent = 100 - staffPresentPercent - staffLatePercent;
@@ -262,9 +265,9 @@ const resolvers = {
         ];
       }
 
-      // Query absent or on-leave teachers for targetDate
+      // Query absent or on-leave teachers for date range
       const absentTeachersData = await models.TeacherAttendance.find({
-        date: targetDate,
+        date: { $gte: start, $lte: end },
         status: { $in: ['ABSENT', 'LEAVE'] }
       }).populate('teacherId');
 
@@ -1205,13 +1208,13 @@ const resolvers = {
       if (user.email) {
         sendEmail({
           to: user.email,
-          subject: 'VidyaFlow Portal Verification - OTP Code',
-          text: `Your VidyaFlow verification OTP code is: ${otp}. It will expire in 5 minutes.`,
+          subject: 'VidhyaFlowAI Portal Verification - OTP Code',
+          text: `Your VidhyaFlowAI verification OTP code is: ${otp}. It will expire in 5 minutes.`,
           html: `
             <div style="font-family: 'Inter', 'Outfit', sans-serif; padding: 20px; color: #0f172a; max-width: 500px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px;">
-              <h2 style="font-size: 24px; font-weight: 800; text-align: center; color: #6366f1; margin-top: 0;">VidyaFlow Verification</h2>
+              <h2 style="font-size: 24px; font-weight: 800; text-align: center; color: #6366f1; margin-top: 0;">VidhyaFlowAI Verification</h2>
               <p>Hello,</p>
-              <p>You requested a verification code to log in to the VidyaFlow School Portal. Use the OTP code below to verify your identity:</p>
+              <p>You requested a verification code to log in to the VidhyaFlowAI School Portal. Use the OTP code below to verify your identity:</p>
               <div style="text-align: center; margin: 30px 0;">
                 <span style="font-size: 32px; font-weight: 800; letter-spacing: 5px; color: #4f46e5; border: 2px dashed #6366f1; padding: 10px 20px; border-radius: 8px; display: inline-block;">
                   ${otp}
@@ -1219,7 +1222,7 @@ const resolvers = {
               </div>
               <p style="font-size: 14px; color: #64748b;">This OTP code is valid for 5 minutes. Please do not share this code with anyone.</p>
               <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-              <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">© VidyaFlow School ERP SaaS System</p>
+              <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">© VidhyaFlowAI School ERP SaaS System</p>
             </div>
           `
         }).catch(err => {
@@ -1230,7 +1233,7 @@ const resolvers = {
       // Send text SMS
       sendSMS({
         to: cleanMobile,
-        body: `Your VidyaFlow portal verification OTP code is: ${otp}. It will expire in 5 minutes.`
+        body: `Your VidhyaFlowAI portal verification OTP code is: ${otp}. It will expire in 5 minutes.`
       }).catch(err => {
         console.error(`[SMS ERROR] Failed to send SMS message to ${cleanMobile}:`, err);
       });
@@ -1786,7 +1789,38 @@ const resolvers = {
         sectionId: args.sectionId,
         parentId: parentId,
         address: args.address,
-        medicalInfo: args.medicalInfo
+        medicalInfo: args.medicalInfo,
+        bloodGroup: args.bloodGroup,
+        branch: args.branch,
+        category: args.category,
+        mobileNumber: args.mobileNumber,
+        house: args.house,
+        height: args.height,
+        weight: args.weight,
+        apaarId: args.apaarId,
+        rteNumber: args.rteNumber,
+        penNumber: args.penNumber,
+        aadhaarFront: args.aadhaarFront,
+        aadhaarBack: args.aadhaarBack,
+        permanentAddress: args.permanentAddress,
+        fatherOccupation: args.fatherOccupation,
+        motherName: args.motherName,
+        motherOccupation: args.motherOccupation,
+        motherPhone: args.motherPhone,
+        guardianName: args.guardianName,
+        guardianPhone: args.guardianPhone,
+        admissionFee: args.admissionFee,
+        tuitionFee: args.tuitionFee,
+        transportFee: args.transportFee,
+        hostelFee: args.hostelFee,
+        otherFee: args.otherFee,
+        dueDate: args.dueDate,
+        totalDiscount: args.totalDiscount,
+        discountType: args.discountType,
+        installmentPlan: args.installmentPlan,
+        prevSchoolName: args.prevSchoolName,
+        prevClass: args.prevClass,
+        passingYear: args.passingYear
       });
 
       if (parentId) {
@@ -1828,7 +1862,38 @@ const resolvers = {
         'gender',
         'dateOfBirth',
         'classId',
-        'sectionId'
+        'sectionId',
+        'branch',
+        'category',
+        'mobileNumber',
+        'house',
+        'height',
+        'weight',
+        'apaarId',
+        'rteNumber',
+        'penNumber',
+        'aadhaarFront',
+        'aadhaarBack',
+        'permanentAddress',
+        'fatherOccupation',
+        'motherName',
+        'motherOccupation',
+        'motherPhone',
+        'guardianName',
+        'guardianPhone',
+        'admissionFee',
+        'tuitionFee',
+        'transportFee',
+        'hostelFee',
+        'otherFee',
+        'dueDate',
+        'totalDiscount',
+        'discountType',
+        'installmentPlan',
+        'prevSchoolName',
+        'prevClass',
+        'passingYear',
+        'bloodGroup'
       ];
 
       allowedFields.forEach((field) => {

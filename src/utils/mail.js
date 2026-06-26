@@ -58,7 +58,7 @@ const getTransporter = async () => {
 const sendEmail = async ({ to, subject, text, html }) => {
   try {
     const client = await getTransporter();
-    const from = process.env.SMTP_FROM || '"VidyaFlow Support" <no-reply@vidyaflow.com>';
+    const from = process.env.SMTP_FROM || '"VidhyaFlowAI Support" <no-reply@vidhyaflowai.com>';
     
     const info = await client.sendMail({
       from,
