@@ -130,6 +130,15 @@ const typeDefs = gql`
     status: String!
   }
 
+  type Event {
+    id: ID!
+    title: String!
+    type: String!
+    date: Date!
+    description: String
+    status: String!
+  }
+
   # Profile Types
   type Student {
     id: ID!
@@ -830,6 +839,9 @@ const typeDefs = gql`
     getInventoryList: [Inventory!]!
     getPendingJobs: [PendingJob!]!
     getChapters(subjectId: ID): [Chapter!]!
+    
+    # Events & Holidays
+    getEvents: [Event!]!
   }
 
   type Mutation {
@@ -1023,6 +1035,10 @@ const typeDefs = gql`
     # Chapters
     createChapter(name: String!, subjectId: ID!, classId: ID!): Chapter!
     deleteChapter(id: ID!): Boolean!
+    
+    # Events & Holidays
+    createEvent(title: String!, type: String!, date: Date!, description: String): Event!
+    deleteEvent(id: ID!): Boolean!
     
     # Feature Permissions
     updateSchoolPermissions(schoolId: ID!, permissions: RolePermissionsInput!): School!

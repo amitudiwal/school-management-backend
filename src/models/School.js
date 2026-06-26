@@ -75,7 +75,7 @@ const schoolSchema = new mongoose.Schema(
       featurePermissions: {
         type: mongoose.Schema.Types.Mixed,
         default: {
-          SUPER_TEACHER: ['teachers', 'classes', 'timetable', 'exams', 'staff-attendance', 'leaves', 'copy-submission'],
+          SUPER_TEACHER: ['teachers', 'classes', 'timetable', 'exams', 'staff-attendance', 'leaves', 'copy-submission', 'events'],
           ACCOUNTANT: ['students', 'fees', 'payroll'],
           TEACHER: ['pending-jobs', 'timetable', 'bus-tracker', 'attendance', 'leaves', 'homework', 'grades', 'analytics', 'payroll', 'copy-submission'],
           PARENT: ['parent-portal', 'bus-tracker']

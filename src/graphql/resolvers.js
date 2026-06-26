@@ -1135,6 +1135,34 @@ const resolvers = {
       authorize(context);
       const query = subjectId ? { subjectId } : {};
       return await models.Chapter.find(query).populate('subjectId').populate('classId');
+    },
+
+    getEvents: async (_, __, context) => {
+      authorize(context);
+      const count = await models.Event.countDocuments();
+      if (count === 0) {
+        await models.Event.create([
+          {
+            title: 'Independence Day',
+            type: 'HOLIDAY',
+            date: new Date('2026-08-15'),
+            description: "National holiday celebrating India's independence."
+          },
+          {
+            title: 'Raksha Bandhan',
+            type: 'HOLIDAY',
+            date: new Date('2026-08-28'),
+            description: "Traditional Hindu festival celebrating the bond of protection between brothers and sisters."
+          },
+          {
+            title: 'Diwali',
+            type: 'HOLIDAY',
+            date: new Date('2026-11-08'),
+            description: "Festival of lights celebrating victory of light over darkness and good over evil."
+          }
+        ]);
+      }
+      return await models.Event.find().sort({ date: 1 });
     }
   },
 
@@ -3021,6 +3049,43 @@ const resolvers = {
       });
       
       return school;
+    },
+
+    createEvent: async (_, { title, type, date, description }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
+      const newEvent = await models.Event.create({
+        title,
+        type,
+        date,
+        description
+      });
+
+      await models.AuditLogs.create({
+        userId: context.userId,
+        action: 'EVENT_CREATE',
+        details: `Created ${type.toLowerCase()}: ${title}`,
+        schoolId: context.schoolId
+      });
+
+      return newEvent;
+    },
+
+    deleteEvent: async (_, { id }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
+      const event = await models.Event.findById(id);
+      if (!event) throw new Error('Event not found.');
+      
+      event.status = 'DELETED';
+      await event.save();
+
+      await models.AuditLogs.create({
+        userId: context.userId,
+        action: 'EVENT_DELETE',
+        details: `Deleted event: ${event.title}`,
+        schoolId: context.schoolId
+      });
+
+      return true;
     }
   },
 
@@ -3028,7 +3093,7 @@ const resolvers = {
     settings: (school) => {
       const settings = school.settings || {};
       const DEFAULT_PERMISSIONS = {
-        SUPER_TEACHER: ['teachers', 'classes', 'timetable', 'exams', 'staff-attendance', 'leaves'],
+        SUPER_TEACHER: ['teachers', 'classes', 'timetable', 'exams', 'staff-attendance', 'leaves', 'copy-submission', 'events'],
         ACCOUNTANT: ['students', 'fees', 'payroll'],
         TEACHER: ['pending-jobs', 'timetable', 'bus-tracker', 'attendance', 'leaves', 'homework', 'grades', 'analytics', 'payroll'],
         PARENT: ['parent-portal', 'bus-tracker']
