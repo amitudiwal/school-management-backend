@@ -302,6 +302,7 @@ const typeDefs = gql`
     checkIn: String
     checkOut: String
     remarks: String
+    faceImage: String
   }
 
   type StaffAttendance {
@@ -312,6 +313,14 @@ const typeDefs = gql`
     checkIn: String
     checkOut: String
     remarks: String
+    faceImage: String
+  }
+
+  type SelfAttendanceStatus {
+    marked: Boolean!
+    status: String
+    checkIn: String
+    faceImage: String
   }
 
   # Exam & Grade Types
@@ -739,6 +748,14 @@ const typeDefs = gql`
     totalSubmissions: Int!
   }
 
+  type FacultyAttendanceTrendPoint {
+    date: String!
+    presentTeachers: Int!
+    absentTeachers: Int!
+    presentStaff: Int!
+    absentStaff: Int!
+  }
+
   type SchoolAdminDashboard {
     studentCount: Int!
     teacherCount: Int!
@@ -755,6 +772,7 @@ const typeDefs = gql`
     libraryStats: LibraryStats!
     leaveStats: LeaveStatsSummary!
     homeworkStats: HomeworkStatsSummary!
+    facultyAttendanceTrend: [FacultyAttendanceTrendPoint!]!
   }
 
   type AttendanceSummary {
@@ -839,6 +857,7 @@ const typeDefs = gql`
     getStudentAttendanceSummary(studentId: ID!): AttendanceSummary!
     getTeacherAttendance(date: Date!): [TeacherAttendance!]!
     getStaffAttendance(date: Date!): [StaffAttendance!]!
+    getMyAttendanceToday: SelfAttendanceStatus!
     
     # Exams & Homework
     getExams: [Exam!]!
@@ -1077,6 +1096,7 @@ const typeDefs = gql`
     markBulkStaffAttendance(date: Date!, records: [BulkStaffAttendanceInput!]!): Boolean!
     checkInTeacherAttendance(teacherId: ID!, checkIn: String!, status: String!): TeacherAttendance!
     checkOutTeacherAttendance(attendanceId: ID!, checkOut: String!): TeacherAttendance!
+    markSelfAttendance(faceImage: String!): Boolean!
 
     # Homework Assignments
     createHomework(title: String!, description: String!, classId: ID!, sectionId: ID!, subjectId: ID!, teacherId: ID, dueDate: Date!, attachments: [DocumentInput]): Homework!

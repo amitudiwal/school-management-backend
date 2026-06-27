@@ -174,29 +174,31 @@ const resolvers = {
         absentPercent = 100 - presentPercent - latePercent;
       }
 
+      const numDays = Math.max(1, Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1);
+
       // Teacher Attendance
-      const totalTeacherAttendance = await models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end } });
-      let teacherPresentPercent = 0.0; // Default fallback when no records
+      const expectedTeacherRecords = teacherCount * numDays;
+      let teacherPresentPercent = 0.0;
       let teacherAbsentPercent = 0.0;
       let teacherLatePercent = 0.0;
-      if (totalTeacherAttendance > 0) {
+      if (expectedTeacherRecords > 0) {
         const teacherPresentCount = await models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' });
         const teacherHalfDayCount = await models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'HALF_DAY' });
-        teacherPresentPercent = (teacherPresentCount / totalTeacherAttendance) * 100;
-        teacherLatePercent = (teacherHalfDayCount / totalTeacherAttendance) * 100;
+        teacherPresentPercent = (teacherPresentCount / expectedTeacherRecords) * 100;
+        teacherLatePercent = (teacherHalfDayCount / expectedTeacherRecords) * 100;
         teacherAbsentPercent = 100 - teacherPresentPercent - teacherLatePercent;
       }
 
       // Staff Attendance
-      const totalStaffAttendance = await models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end } });
-      let staffPresentPercent = 0.0; // Default fallback when no records
+      const expectedStaffRecords = staffCount * numDays;
+      let staffPresentPercent = 0.0;
       let staffAbsentPercent = 0.0;
       let staffLatePercent = 0.0;
-      if (totalStaffAttendance > 0) {
+      if (expectedStaffRecords > 0) {
         const staffPresentCount = await models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' });
         const staffHalfDayCount = await models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'HALF_DAY' });
-        staffPresentPercent = (staffPresentCount / totalStaffAttendance) * 100;
-        staffLatePercent = (staffHalfDayCount / totalStaffAttendance) * 100;
+        staffPresentPercent = (staffPresentCount / expectedStaffRecords) * 100;
+        staffLatePercent = (staffHalfDayCount / expectedStaffRecords) * 100;
         staffAbsentPercent = 100 - staffPresentPercent - staffLatePercent;
       }
 
@@ -341,6 +343,44 @@ const resolvers = {
         ];
       }
 
+      // By default, if start and end are the same (today), let's show a 7-day trend
+      const trendStart = new Date(start);
+      if (start.getTime() === end.getTime()) {
+        trendStart.setDate(trendStart.getDate() - 6);
+      }
+
+      const facultyAttendanceTrend = [];
+      const tempDate = new Date(trendStart);
+      let limit = 0;
+      while (tempDate <= end && limit < 100) {
+        limit++;
+        const currentDate = new Date(tempDate);
+        currentDate.setHours(0, 0, 0, 0);
+        const dateStr = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        const presentTeachers = await models.TeacherAttendance.countDocuments({
+          date: currentDate,
+          status: { $in: ['PRESENT', 'HALF_DAY'] }
+        });
+        const absentTeachers = Math.max(0, teacherCount - presentTeachers);
+
+        const presentStaff = await models.StaffAttendance.countDocuments({
+          date: currentDate,
+          status: { $in: ['PRESENT', 'HALF_DAY'] }
+        });
+        const absentStaff = Math.max(0, staffCount - presentStaff);
+
+        facultyAttendanceTrend.push({
+          date: dateStr,
+          presentTeachers,
+          absentTeachers,
+          presentStaff,
+          absentStaff
+        });
+
+        tempDate.setDate(tempDate.getDate() + 1);
+      }
+
       return {
         studentCount,
         teacherCount,
@@ -382,7 +422,8 @@ const resolvers = {
         homeworkStats: {
           totalHomework: dbHomework,
           totalSubmissions: dbSubmissions
-        }
+        },
+        facultyAttendanceTrend
       };
     },
 
@@ -493,6 +534,41 @@ const resolvers = {
       const queryDate = new Date(date);
       queryDate.setHours(0, 0, 0, 0);
       return await models.StaffAttendance.find({ date: queryDate }).populate('staffId');
+    },
+
+    getMyAttendanceToday: async (_, __, context) => {
+      authorize(context, ['TEACHER', 'CLASS_TEACHER', 'SUPER_TEACHER', 'ACCOUNTANT']);
+      const queryDate = new Date();
+      queryDate.setHours(0, 0, 0, 0);
+
+      let attendance = null;
+      if (['TEACHER', 'CLASS_TEACHER'].includes(context.role)) {
+        const teacher = await models.Teacher.findOne({ userId: context.userId });
+        if (teacher) {
+          attendance = await models.TeacherAttendance.findOne({ teacherId: teacher._id, date: queryDate });
+        }
+      } else if (['SUPER_TEACHER', 'ACCOUNTANT'].includes(context.role)) {
+        const staff = await models.Staff.findOne({ userId: context.userId });
+        if (staff) {
+          attendance = await models.StaffAttendance.findOne({ staffId: staff._id, date: queryDate });
+        }
+      }
+
+      if (attendance) {
+        return {
+          marked: true,
+          status: attendance.status,
+          checkIn: attendance.checkIn,
+          faceImage: attendance.faceImage || null
+        };
+      }
+
+      return {
+        marked: false,
+        status: null,
+        checkIn: null,
+        faceImage: null
+      };
     },
 
     getExams: async (_, __, context) => {
@@ -2163,6 +2239,52 @@ const resolvers = {
         userId: context.userId,
         action: 'STAFF_ATTENDANCE_MARK_BULK',
         details: `Marked staff attendance on ${date}`,
+        schoolId: context.schoolId
+      });
+
+      return true;
+    },
+
+    markSelfAttendance: async (_, { faceImage }, context) => {
+      authorize(context, ['TEACHER', 'CLASS_TEACHER', 'SUPER_TEACHER', 'ACCOUNTANT']);
+      const today = new Date();
+      const queryDate = new Date(today);
+      queryDate.setHours(0, 0, 0, 0);
+
+      // format current time as checkIn e.g. "08:30 AM" or "02:15 PM"
+      const hours = today.getHours();
+      const minutes = today.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const formattedHours = hours % 12 || 12;
+      const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
+      const checkInTime = `${formattedHours}:${formattedMinutes} ${ampm}`;
+
+      if (['TEACHER', 'CLASS_TEACHER'].includes(context.role)) {
+        const teacher = await models.Teacher.findOne({ userId: context.userId });
+        if (!teacher) {
+          throw new Error('Teacher record not found for the logged in user');
+        }
+        await models.TeacherAttendance.findOneAndUpdate(
+          { teacherId: teacher._id, date: queryDate },
+          { status: 'PRESENT', checkIn: checkInTime, faceImage: faceImage },
+          { upsert: true, new: true }
+        );
+      } else if (['SUPER_TEACHER', 'ACCOUNTANT'].includes(context.role)) {
+        const staff = await models.Staff.findOne({ userId: context.userId });
+        if (!staff) {
+          throw new Error('Staff record not found for the logged in user');
+        }
+        await models.StaffAttendance.findOneAndUpdate(
+          { staffId: staff._id, date: queryDate },
+          { status: 'PRESENT', checkIn: checkInTime, faceImage: faceImage },
+          { upsert: true, new: true }
+        );
+      }
+
+      await models.AuditLogs.create({
+        userId: context.userId,
+        action: 'SELF_ATTENDANCE_MARK',
+        details: `Marked self attendance with face capture`,
         schoolId: context.schoolId
       });
 

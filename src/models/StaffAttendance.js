@@ -19,7 +19,8 @@ const staffAttendanceSchema = new mongoose.Schema(
     },
     checkIn: String,
     checkOut: String,
-    remarks: String
+    remarks: String,
+    faceImage: String
   },
   {
     timestamps: true
