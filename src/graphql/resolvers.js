@@ -542,12 +542,12 @@ const resolvers = {
       queryDate.setHours(0, 0, 0, 0);
 
       let attendance = null;
-      if (['TEACHER', 'CLASS_TEACHER'].includes(context.role)) {
+      if (['TEACHER', 'CLASS_TEACHER', 'SUPER_TEACHER'].includes(context.role)) {
         const teacher = await models.Teacher.findOne({ userId: context.userId });
         if (teacher) {
           attendance = await models.TeacherAttendance.findOne({ teacherId: teacher._id, date: queryDate });
         }
-      } else if (['SUPER_TEACHER', 'ACCOUNTANT'].includes(context.role)) {
+      } else if (['ACCOUNTANT'].includes(context.role)) {
         const staff = await models.Staff.findOne({ userId: context.userId });
         if (staff) {
           attendance = await models.StaffAttendance.findOne({ staffId: staff._id, date: queryDate });
@@ -2259,7 +2259,7 @@ const resolvers = {
       const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
       const checkInTime = `${formattedHours}:${formattedMinutes} ${ampm}`;
 
-      if (['TEACHER', 'CLASS_TEACHER'].includes(context.role)) {
+      if (['TEACHER', 'CLASS_TEACHER', 'SUPER_TEACHER'].includes(context.role)) {
         const teacher = await models.Teacher.findOne({ userId: context.userId });
         if (!teacher) {
           throw new Error('Teacher record not found for the logged in user');
@@ -2269,7 +2269,7 @@ const resolvers = {
           { status: 'PRESENT', checkIn: checkInTime, faceImage: faceImage },
           { upsert: true, new: true }
         );
-      } else if (['SUPER_TEACHER', 'ACCOUNTANT'].includes(context.role)) {
+      } else if (['ACCOUNTANT'].includes(context.role)) {
         const staff = await models.Staff.findOne({ userId: context.userId });
         if (!staff) {
           throw new Error('Staff record not found for the logged in user');
