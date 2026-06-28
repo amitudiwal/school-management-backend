@@ -303,6 +303,7 @@ const typeDefs = gql`
     checkOut: String
     remarks: String
     faceImage: String
+    location: String
   }
 
   type StaffAttendance {
@@ -314,6 +315,7 @@ const typeDefs = gql`
     checkOut: String
     remarks: String
     faceImage: String
+    location: String
   }
 
   type SelfAttendanceStatus {
@@ -321,6 +323,7 @@ const typeDefs = gql`
     status: String
     checkIn: String
     faceImage: String
+    location: String
   }
 
   # Exam & Grade Types
@@ -1096,7 +1099,7 @@ const typeDefs = gql`
     markBulkStaffAttendance(date: Date!, records: [BulkStaffAttendanceInput!]!): Boolean!
     checkInTeacherAttendance(teacherId: ID!, checkIn: String!, status: String!): TeacherAttendance!
     checkOutTeacherAttendance(attendanceId: ID!, checkOut: String!): TeacherAttendance!
-    markSelfAttendance(faceImage: String!): Boolean!
+    markSelfAttendance(faceImage: String!, location: String): Boolean!
 
     # Homework Assignments
     createHomework(title: String!, description: String!, classId: ID!, sectionId: ID!, subjectId: ID!, teacherId: ID, dueDate: Date!, attachments: [DocumentInput]): Homework!

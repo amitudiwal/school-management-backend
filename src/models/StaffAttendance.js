@@ -20,7 +20,8 @@ const staffAttendanceSchema = new mongoose.Schema(
     checkIn: String,
     checkOut: String,
     remarks: String,
-    faceImage: String
+    faceImage: String,
+    location: String
   },
   {
     timestamps: true

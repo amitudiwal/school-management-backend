@@ -20,7 +20,8 @@ const teacherAttendanceSchema = new mongoose.Schema(
     checkIn: String,  // e.g. "08:30 AM"
     checkOut: String, // e.g. "04:30 PM"
     remarks: String,
-    faceImage: String
+    faceImage: String,
+    location: String
   },
   {
     timestamps: true

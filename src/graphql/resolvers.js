@@ -559,7 +559,8 @@ const resolvers = {
           marked: true,
           status: attendance.status,
           checkIn: attendance.checkIn,
-          faceImage: attendance.faceImage || null
+          faceImage: attendance.faceImage || null,
+          location: attendance.location || null
         };
       }
 
@@ -567,7 +568,8 @@ const resolvers = {
         marked: false,
         status: null,
         checkIn: null,
-        faceImage: null
+        faceImage: null,
+        location: null
       };
     },
 
@@ -2245,7 +2247,7 @@ const resolvers = {
       return true;
     },
 
-    markSelfAttendance: async (_, { faceImage }, context) => {
+    markSelfAttendance: async (_, { faceImage, location }, context) => {
       authorize(context, ['TEACHER', 'CLASS_TEACHER', 'SUPER_TEACHER', 'ACCOUNTANT']);
       const today = new Date();
       const queryDate = new Date(today);
@@ -2266,7 +2268,7 @@ const resolvers = {
         }
         await models.TeacherAttendance.findOneAndUpdate(
           { teacherId: teacher._id, date: queryDate },
-          { status: 'PRESENT', checkIn: checkInTime, faceImage: faceImage },
+          { status: 'PRESENT', checkIn: checkInTime, faceImage: faceImage, location: location },
           { upsert: true, new: true }
         );
       } else if (['ACCOUNTANT'].includes(context.role)) {
@@ -2276,7 +2278,7 @@ const resolvers = {
         }
         await models.StaffAttendance.findOneAndUpdate(
           { staffId: staff._id, date: queryDate },
-          { status: 'PRESENT', checkIn: checkInTime, faceImage: faceImage },
+          { status: 'PRESENT', checkIn: checkInTime, faceImage: faceImage, location: location },
           { upsert: true, new: true }
         );
       }
