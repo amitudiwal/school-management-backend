@@ -830,6 +830,15 @@ const typeDefs = gql`
     roomNumber: String
   }
 
+  type TeacherAttendanceSummaryRow {
+    teacherId: ID!
+    name: String!
+    email: String!
+    phone: String!
+    absentCount: Int!
+    leaveCount: Float!
+  }
+
   type Query {
     # System & Super Admin
     getSchools: [School!]!
@@ -839,6 +848,7 @@ const typeDefs = gql`
     getGlobalAuditLogs: [AuditLog!]!
 
     # School Config & Admin
+    getTeacherAttendanceSummary(month: Int!, year: Int!): [TeacherAttendanceSummaryRow!]!
     getSchoolAdminDashboard(startDate: Date, endDate: Date): SchoolAdminDashboard!
     getGradeDistribution(classId: ID, sectionId: ID): [GradeDistributionPoint!]!
     getCopySubmissionAnalytics(classId: ID, sectionId: ID): [CopySubmissionAnalyticPoint!]!

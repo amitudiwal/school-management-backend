@@ -435,6 +435,60 @@ const resolvers = {
       };
     },
 
+    getTeacherAttendanceSummary: async (_, { month, year }, context) => {
+      authorize(context, ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      
+      const teachers = await models.Teacher.find();
+      
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+      
+      const summary = [];
+      
+      for (const teacher of teachers) {
+        // Count Absences
+        const absentCount = await models.TeacherAttendance.countDocuments({
+          teacherId: teacher._id,
+          date: { $gte: startDate, $lte: endDate },
+          status: 'ABSENT'
+        });
+        
+        // Count Approved Leaves
+        const approvedLeaves = await models.LeaveManagement.find({
+          userId: teacher.userId,
+          status: 'APPROVED',
+          startDate: { $lte: endDate },
+          endDate: { $gte: startDate }
+        });
+        
+        let leaveDays = 0;
+        approvedLeaves.forEach(leave => {
+          const start = new Date(Math.max(new Date(leave.startDate), startDate));
+          const end = new Date(Math.min(new Date(leave.endDate), endDate));
+          
+          if (start <= end) {
+            // Set times to midnight to calculate difference in full days
+            start.setHours(0,0,0,0);
+            end.setHours(0,0,0,0);
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            leaveDays += diffDays;
+          }
+        });
+        
+        summary.push({
+          teacherId: teacher._id,
+          name: `${teacher.firstName} ${teacher.lastName}`,
+          email: teacher.email,
+          phone: teacher.phone,
+          absentCount,
+          leaveCount: leaveDays
+        });
+      }
+      
+      return summary;
+    },
+
     getGradeDistribution: async (_, { classId, sectionId }, context) => {
       authorize(context, ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
       const mongoose = require('mongoose');
