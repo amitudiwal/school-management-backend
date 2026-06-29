@@ -435,6 +435,81 @@ const resolvers = {
       };
     },
 
+    getGradeDistribution: async (_, { classId, sectionId }, context) => {
+      authorize(context, ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      const mongoose = require('mongoose');
+      const targetSchoolId = new mongoose.Types.ObjectId(context.schoolId);
+
+      const gradeMatch = { schoolId: targetSchoolId };
+      if (classId || sectionId) {
+        const studentFilter = { schoolId: targetSchoolId };
+        if (classId) studentFilter.classId = new mongoose.Types.ObjectId(classId);
+        if (sectionId) studentFilter.sectionId = new mongoose.Types.ObjectId(sectionId);
+        const matchedStudents = await models.Student.find(studentFilter).select('_id');
+        const matchedStudentIds = matchedStudents.map(s => s._id);
+        gradeMatch.studentId = { $in: matchedStudentIds };
+      }
+
+      const gradeCounts = await models.Marks.aggregate([
+        { $match: gradeMatch },
+        {
+          $group: {
+            _id: "$grade",
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+      return gradeCounts
+        .filter(gc => gc._id)
+        .map(gc => ({
+          grade: gc._id,
+          count: gc.count
+        }));
+    },
+
+    getCopySubmissionAnalytics: async (_, { classId, sectionId }, context) => {
+      authorize(context, ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      const mongoose = require('mongoose');
+      const targetSchoolId = new mongoose.Types.ObjectId(context.schoolId);
+
+      const copyMatch = { schoolId: targetSchoolId };
+      if (classId) {
+        copyMatch.classId = new mongoose.Types.ObjectId(classId);
+      }
+      if (sectionId) {
+        copyMatch.sectionId = new mongoose.Types.ObjectId(sectionId);
+      }
+
+      const copyAnalytics = await models.CopySubmission.aggregate([
+        { $match: copyMatch },
+        {
+          $group: {
+            _id: { classId: "$classId", subjectId: "$subjectId" },
+            completedCount: { $sum: { $cond: [{ $eq: ["$isCompleted", true] }, 1, 0] } },
+            totalCount: { $sum: 1 }
+          }
+        }
+      ]);
+
+      const copySubmissionSummary = [];
+      for (const item of copyAnalytics) {
+        const cls = await models.Class.findById(item._id.classId);
+        const sub = await models.Subject.findById(item._id.subjectId);
+        if (cls && sub) {
+          const rate = item.totalCount > 0 ? (item.completedCount / item.totalCount) * 100 : 0;
+          copySubmissionSummary.push({
+            className: cls.name,
+            subjectName: sub.name,
+            completedCount: item.completedCount,
+            totalCount: item.totalCount,
+            completionRate: Math.round(rate * 10) / 10
+          });
+        }
+      }
+      return copySubmissionSummary;
+    },
+
     getClasses: async (_, __, context) => {
       authorize(context);
       return await models.Class.find();

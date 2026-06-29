@@ -839,6 +839,8 @@ const typeDefs = gql`
 
     # School Config & Admin
     getSchoolAdminDashboard(startDate: Date, endDate: Date): SchoolAdminDashboard!
+    getGradeDistribution(classId: ID, sectionId: ID): [GradeDistributionPoint!]!
+    getCopySubmissionAnalytics(classId: ID, sectionId: ID): [CopySubmissionAnalyticPoint!]!
     getClasses: [Class!]!
     getSections(classId: ID): [Section!]!
     getSubjects(classId: ID): [Subject!]!
