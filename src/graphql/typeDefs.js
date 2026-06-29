@@ -304,6 +304,7 @@ const typeDefs = gql`
     remarks: String
     faceImage: String
     location: String
+    updatedAt: Date
   }
 
   type StaffAttendance {
@@ -316,6 +317,7 @@ const typeDefs = gql`
     remarks: String
     faceImage: String
     location: String
+    updatedAt: Date
   }
 
   type SelfAttendanceStatus {
