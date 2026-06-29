@@ -342,6 +342,7 @@ const typeDefs = gql`
     examId: Exam!
     subjectId: Subject!
     classId: Class!
+    sectionId: Section
     date: Date!
     startTime: String!
     endTime: String!
@@ -866,7 +867,7 @@ const typeDefs = gql`
     
     # Exams & Homework
     getExams: [Exam!]!
-    getExamSchedules(examId: ID, classId: ID): [ExamSchedule!]!
+    getExamSchedules(examId: ID, classId: ID, sectionId: ID): [ExamSchedule!]!
     getStudentMarks(studentId: ID!, examId: ID): [Marks!]!
     getHomework(classId: ID!, sectionId: ID!): [Homework!]!
     getHomeworkSubmissions(homeworkId: ID!): [HomeworkSubmission!]!
@@ -1113,7 +1114,7 @@ const typeDefs = gql`
 
     # Exams & Marks
     createExam(name: String!, academicYear: String!, startDate: Date, endDate: Date, description: String): Exam!
-    createExamSchedule(examId: ID!, subjectId: ID!, classId: ID!, date: Date!, startTime: String!, endTime: String!, maxMarks: Float!, passMarks: Float!, roomNo: String): ExamSchedule!
+    createExamSchedule(examId: ID!, subjectId: ID!, classId: ID!, date: Date!, startTime: String!, endTime: String!, maxMarks: Float!, passMarks: Float!, roomNo: String, sectionId: ID): ExamSchedule!
     enterStudentMarks(studentId: ID!, examId: ID!, subjectId: ID!, marksObtained: Float!, grade: String, remarks: String): Marks!
 
     # Fees Management

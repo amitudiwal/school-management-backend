@@ -18,6 +18,10 @@ const examScheduleSchema = new mongoose.Schema(
       ref: 'Class',
       required: true
     },
+    sectionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Section'
+    },
     date: {
       type: Date,
       required: true

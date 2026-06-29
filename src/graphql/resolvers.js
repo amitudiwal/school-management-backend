@@ -679,12 +679,13 @@ const resolvers = {
       return exams;
     },
 
-    getExamSchedules: async (_, { examId, classId }, context) => {
+    getExamSchedules: async (_, { examId, classId, sectionId }, context) => {
       authorize(context);
       let query = {};
       if (examId) query.examId = examId;
       if (classId) query.classId = classId;
-      return await models.ExamSchedule.find(query).populate('examId').populate('subjectId').populate('classId');
+      if (sectionId) query.sectionId = sectionId;
+      return await models.ExamSchedule.find(query).populate('examId').populate('subjectId').populate('classId').populate('sectionId');
     },
 
     getStudentMarks: async (_, { studentId, examId }, context) => {
@@ -2475,7 +2476,7 @@ const resolvers = {
     createExamSchedule: async (_, args, context) => {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
       const sched = await models.ExamSchedule.create(args);
-      return await models.ExamSchedule.findById(sched._id).populate('examId').populate('subjectId').populate('classId');
+      return await models.ExamSchedule.findById(sched._id).populate('examId').populate('subjectId').populate('classId').populate('sectionId');
     },
 
     enterStudentMarks: async (_, args, context) => {
