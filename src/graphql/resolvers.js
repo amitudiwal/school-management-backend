@@ -117,16 +117,48 @@ const resolvers = {
       const totalStudents = await models.User.countDocuments({ role: 'STUDENT' });
       const totalTeachers = await models.User.countDocuments({ role: 'TEACHER' });
 
-      // Dynamic revenue mock series
-      const monthlyRevenue = 15420.00;
-      const annualRevenue = 185040.00;
+      const planPrices = {
+        'TRIAL': 0.00,
+        'BASIC': 2999.00,
+        'PREMIUM': 7999.00,
+        'ENTERPRISE': 14999.00
+      };
 
-      const monthlyRevenueSeries = [
-        { month: 'Jan', revenue: 12000.00 },
-        { month: 'Feb', revenue: 12500.00 },
-        { month: 'Mar', revenue: 14000.00 },
-        { month: 'Apr', revenue: 15420.00 },
-      ];
+      const activeSchoolsList = await models.School.find({
+        status: { $in: ['ACTIVE', 'APPROVED'] }
+      });
+      let monthlyRevenue = 0.00;
+      activeSchoolsList.forEach(school => {
+        const plan = school.subscriptionPlan || school.subscription?.plan || 'TRIAL';
+        monthlyRevenue += (planPrices[plan] || 0.00);
+      });
+      const annualRevenue = monthlyRevenue * 12;
+
+      const monthlyRevenueSeries = [];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const now = new Date();
+      
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthLabel = months[date.getMonth()];
+        const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
+        
+        const schoolsAtMonth = await models.School.find({
+          createdAt: { $lte: monthEnd },
+          status: { $in: ['ACTIVE', 'APPROVED'] }
+        });
+        
+        let rev = 0.00;
+        schoolsAtMonth.forEach(school => {
+          const plan = school.subscriptionPlan || school.subscription?.plan || 'TRIAL';
+          rev += (planPrices[plan] || 0.00);
+        });
+        
+        monthlyRevenueSeries.push({
+          month: monthLabel,
+          revenue: rev
+        });
+      }
 
       return {
         totalSchools,
@@ -217,7 +249,6 @@ const resolvers = {
           totalExpected += (f.amount * count);
         }
       }
-      if (totalExpected === 0) totalExpected = 50000;
 
       const actualPayments = await models.FeePayments.aggregate([
         { $match: { status: 'PAID' } },
@@ -256,16 +287,7 @@ const resolvers = {
           count: gc.count
         }));
 
-      if (gradeDistribution.length === 0) {
-        gradeDistribution = [
-          { grade: 'A+', count: 15 },
-          { grade: 'A', count: 22 },
-          { grade: 'B', count: 35 },
-          { grade: 'C', count: 18 },
-          { grade: 'D', count: 8 },
-          { grade: 'F', count: 2 }
-        ];
-      }
+
 
       // Query absent or on-leave teachers for date range
       const absentTeachersData = await models.TeacherAttendance.find({
@@ -284,28 +306,15 @@ const resolvers = {
       // Library Stats
       let dbBooks = await models.LibraryBooks.countDocuments();
       let dbIssued = await models.BookIssue.countDocuments({ status: 'ISSUED' });
-      if (dbBooks === 0) {
-        dbBooks = 150;
-        dbIssued = 45;
-      }
 
       // Leave Stats
       let pendingLeaves = await models.LeaveManagement.countDocuments({ status: 'PENDING' });
       let approvedLeaves = await models.LeaveManagement.countDocuments({ status: 'APPROVED' });
       let rejectedLeaves = await models.LeaveManagement.countDocuments({ status: 'REJECTED' });
-      if (pendingLeaves + approvedLeaves + rejectedLeaves === 0) {
-        pendingLeaves = 4;
-        approvedLeaves = 18;
-        rejectedLeaves = 2;
-      }
 
       // Homework Stats
       let dbHomework = await models.Homework.countDocuments();
       let dbSubmissions = await models.HomeworkSubmission.countDocuments();
-      if (dbHomework === 0) {
-        dbHomework = 24;
-        dbSubmissions = 186;
-      }
 
       // Copy Submission Analytics
       const copyAnalytics = await models.CopySubmission.aggregate([
@@ -335,13 +344,6 @@ const resolvers = {
       }
 
       let finalCopySummary = copySubmissionSummary;
-      if (finalCopySummary.length === 0) {
-        finalCopySummary = [
-          { className: 'Grade 5', subjectName: 'Mathematics', completedCount: 22, totalCount: 25, completionRate: 88.0 },
-          { className: 'Grade 10', subjectName: 'Physics', completedCount: 18, totalCount: 20, completionRate: 90.0 },
-          { className: 'Grade 11', subjectName: 'Chemistry', completedCount: 12, totalCount: 15, completionRate: 80.0 }
-        ];
-      }
 
       // By default, if start and end are the same (today), let's show a 7-day trend
       const trendStart = new Date(start);
@@ -924,7 +926,7 @@ const resolvers = {
 
     getStudentFeeLedger: async (_, { classId, studentId }, context) => {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'ACCOUNTANT']);
-      
+      console.log('DEBUG: getStudentFeeLedger variables:', { classId, studentId });
       const studentQuery = {};
       if (studentId) {
         studentQuery._id = studentId;
