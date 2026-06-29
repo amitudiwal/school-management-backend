@@ -2,12 +2,14 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const http = require('http');
 const models = require('../models');
 
 // Helper to download external image as a Buffer
 const downloadImageAsBuffer = (url) => {
   return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, (res) => {
       if (res.statusCode !== 200) {
         reject(new Error(`Failed to download image, status code: ${res.statusCode}`));
         return;
@@ -29,7 +31,18 @@ const getGradeForPercentage = (percentage, grades) => {
 // Generates an individual student's report card layout on the current PDF document instance
 const drawReportCardPage = async (doc, student, exam, school, grades, isMultiPage = false) => {
   // 1. Fetch marks and schedules for this exam and class
-  const examSchedules = await models.ExamSchedule.find({ examId: exam._id, classId: student.classId._id }).populate('subjectId');
+  const scheduleQuery = {
+    examId: exam._id,
+    classId: student.classId?._id
+  };
+  if (student.sectionId?._id) {
+    scheduleQuery.$or = [
+      { sectionId: student.sectionId._id },
+      { sectionId: { $exists: false } },
+      { sectionId: null }
+    ];
+  }
+  const examSchedules = await models.ExamSchedule.find(scheduleQuery).populate('subjectId');
   const marks = await models.Marks.find({ studentId: student._id, examId: exam._id });
 
   // 2. Compile marks data
@@ -81,7 +94,11 @@ const drawReportCardPage = async (doc, student, exam, school, grades, isMultiPag
   const finalStatus = hasPending ? 'INCOMPLETE' : (passedAll ? 'PASSED' : 'FAILED');
 
   // 4. Homework analytics integration
-  const totalHomework = await models.Homework.countDocuments({ classId: student.classId._id, sectionId: student.sectionId._id });
+  const homeworkQuery = { classId: student.classId?._id };
+  if (student.sectionId?._id) {
+    homeworkQuery.sectionId = student.sectionId._id;
+  }
+  const totalHomework = await models.Homework.countDocuments(homeworkQuery);
   const submissions = await models.HomeworkSubmission.find({ studentId: student._id });
   const gradedSubmissions = submissions.filter(s => s.status === 'GRADED');
   const homeworkCompRate = totalHomework > 0 ? (submissions.length / totalHomework) * 100 : 0;
