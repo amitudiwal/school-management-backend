@@ -180,6 +180,9 @@ const resolvers = {
     getSchoolAdminDashboard: async (_, { startDate, endDate }, context) => {
       authorize(context, ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']);
       
+      const mongoose = require('mongoose');
+      const targetSchoolId = new mongoose.Types.ObjectId(context.schoolId);
+
       const studentCount = await models.Student.countDocuments();
       const teacherCount = await models.Teacher.countDocuments();
       const staffCount = await models.Staff.countDocuments();
@@ -236,6 +239,7 @@ const resolvers = {
 
       // Fees Stats
       const expectedFees = await models.StudentFeeStructure.aggregate([
+        { $match: { schoolId: targetSchoolId } },
         { $unwind: "$components" },
         { $group: { _id: null, total: { $sum: "$components.amount" } } }
       ]);
@@ -251,7 +255,7 @@ const resolvers = {
       }
 
       const actualPayments = await models.FeePayments.aggregate([
-        { $match: { status: 'PAID' } },
+        { $match: { schoolId: targetSchoolId, status: 'PAID' } },
         { $group: { _id: null, total: { $sum: "$amountPaid" } } }
       ]);
       const totalCollected = actualPayments[0]?.total || 0;
@@ -272,6 +276,7 @@ const resolvers = {
 
       // Grade Distribution Stats
       const gradeCounts = await models.Marks.aggregate([
+        { $match: { schoolId: targetSchoolId } },
         {
           $group: {
             _id: "$grade",
@@ -318,6 +323,7 @@ const resolvers = {
 
       // Copy Submission Analytics
       const copyAnalytics = await models.CopySubmission.aggregate([
+        { $match: { schoolId: targetSchoolId } },
         {
           $group: {
             _id: { classId: "$classId", subjectId: "$subjectId" },
