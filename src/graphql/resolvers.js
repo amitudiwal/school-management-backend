@@ -693,7 +693,7 @@ const resolvers = {
 
       if (attendance) {
         return {
-          marked: true,
+          marked: attendance.status !== 'ABSENT',
           status: attendance.status,
           checkIn: attendance.checkIn,
           faceImage: attendance.faceImage || null,
