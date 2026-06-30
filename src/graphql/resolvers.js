@@ -1382,6 +1382,49 @@ const resolvers = {
         ]);
       }
       return await models.Event.find().sort({ date: 1 });
+    },
+
+    getInventoryList: async (_, __, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
+      const count = await models.Inventory.countDocuments();
+      if (count === 0) {
+        await models.Inventory.create([
+          {
+            itemName: 'Football',
+            category: 'SPORTS',
+            quantity: 25,
+            availableQuantity: 25,
+            unitPrice: 15.0,
+            vendorName: 'Sporting Goods Co',
+            purchaseDate: new Date('2026-05-10'),
+            remarks: 'High-quality training footballs',
+            schoolId: context.schoolId
+          },
+          {
+            itemName: 'Cricket Kit Set',
+            category: 'SPORTS',
+            quantity: 5,
+            availableQuantity: 5,
+            unitPrice: 120.0,
+            vendorName: 'Universal Sports Ltd',
+            purchaseDate: new Date('2026-04-12'),
+            remarks: 'Complete bats, pads, and helmets set',
+            schoolId: context.schoolId
+          },
+          {
+            itemName: 'Badminton Rackets',
+            category: 'SPORTS',
+            quantity: 20,
+            availableQuantity: 20,
+            unitPrice: 10.0,
+            vendorName: 'Sporting Goods Co',
+            purchaseDate: new Date('2026-06-01'),
+            remarks: 'Carbon fiber light rackets',
+            schoolId: context.schoolId
+          }
+        ]);
+      }
+      return await models.Inventory.find().sort({ createdAt: -1 });
     }
   },
 
@@ -3413,6 +3456,73 @@ const resolvers = {
       });
 
       return true;
+    },
+
+    addInventoryItem: async (_, { itemName, category, quantity, unitPrice, vendorName, purchaseDate }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
+      
+      const item = await models.Inventory.create({
+        itemName,
+        category,
+        quantity,
+        availableQuantity: quantity,
+        unitPrice,
+        vendorName,
+        purchaseDate,
+        schoolId: context.schoolId
+      });
+
+      await models.AuditLogs.create({
+        userId: context.userId,
+        action: 'INVENTORY_ADD',
+        details: `Added inventory item: ${itemName} (Qty: ${quantity})`,
+        schoolId: context.schoolId
+      });
+
+      return item;
+    },
+
+    updateInventoryItem: async (_, { id, itemName, category, quantity, unitPrice, vendorName, purchaseDate }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
+      
+      const updateData = {};
+      if (itemName !== undefined) updateData.itemName = itemName;
+      if (category !== undefined) updateData.category = category;
+      if (quantity !== undefined) {
+        updateData.quantity = quantity;
+        updateData.availableQuantity = quantity;
+      }
+      if (unitPrice !== undefined) updateData.unitPrice = unitPrice;
+      if (vendorName !== undefined) updateData.vendorName = vendorName;
+      if (purchaseDate !== undefined) updateData.purchaseDate = purchaseDate;
+
+      const item = await models.Inventory.findByIdAndUpdate(id, updateData, { new: true });
+      if (!item) throw new Error('Inventory item not found.');
+
+      await models.AuditLogs.create({
+        userId: context.userId,
+        action: 'INVENTORY_UPDATE',
+        details: `Updated inventory item: ${item.itemName}`,
+        schoolId: context.schoolId
+      });
+
+      return item;
+    },
+
+    deleteInventoryItem: async (_, { id }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
+      
+      const item = await models.Inventory.findByIdAndDelete(id);
+      if (!item) throw new Error('Inventory item not found.');
+
+      await models.AuditLogs.create({
+        userId: context.userId,
+        action: 'INVENTORY_DELETE',
+        details: `Deleted inventory item: ${item.itemName}`,
+        schoolId: context.schoolId
+      });
+
+      return true;
     }
   },
 
@@ -3420,7 +3530,7 @@ const resolvers = {
     settings: (school) => {
       const settings = school.settings || {};
       const DEFAULT_PERMISSIONS = {
-        SUPER_TEACHER: ['teachers', 'classes', 'timetable', 'exams', 'staff-attendance', 'leaves', 'copy-submission', 'events'],
+        SUPER_TEACHER: ['teachers', 'classes', 'timetable', 'exams', 'staff-attendance', 'leaves', 'copy-submission', 'events', 'inventory'],
         ACCOUNTANT: ['students', 'fees', 'payroll'],
         TEACHER: ['pending-jobs', 'timetable', 'bus-tracker', 'attendance', 'leaves', 'homework', 'grades', 'analytics', 'payroll'],
         PARENT: ['parent-portal', 'bus-tracker']
@@ -3449,6 +3559,10 @@ const resolvers = {
       if (!parent.componentId) return null;
       return await models.Fees.findById(parent.componentId);
     }
+  },
+
+  Inventory: {
+    status: (parent) => parent.status || 'ACTIVE'
   }
 };
 

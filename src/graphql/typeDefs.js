@@ -1150,6 +1150,8 @@ const typeDefs = gql`
     createVehicle(vehicleNo: String!, model: String, capacity: Int!, driverName: String!, driverPhone: String!, routeId: ID): Vehicle!
     updateVehicleLocation(id: ID!, latitude: Float!, longitude: Float!, status: String!): Vehicle!
     addInventoryItem(itemName: String!, category: String!, quantity: Int!, unitPrice: Float, vendorName: String, purchaseDate: Date): Inventory!
+    updateInventoryItem(id: ID!, itemName: String, category: String, quantity: Int, unitPrice: Float, vendorName: String, purchaseDate: Date): Inventory!
+    deleteInventoryItem(id: ID!): Boolean!
 
     # Timetable
     createTimetableEntry(dayOfWeek: String!, startTime: String!, endTime: String!, classId: ID!, sectionId: ID!, subjectId: ID!, teacherId: ID!, roomNumber: String): Timetable!
