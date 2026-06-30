@@ -152,13 +152,13 @@ const seed = async () => {
 
       // 4. Create Classes for Sunrise
       const class10 = await models.Class.create({
-        name: 'Grade 10',
-        code: 'G10',
+        name: 'Class 10',
+        code: 'C10',
         description: 'Sophomore High School Class'
       });
       const class11 = await models.Class.create({
-        name: 'Grade 11',
-        code: 'G11',
+        name: 'Class 11',
+        code: 'C11',
         description: 'Junior High School Class'
       });
 
@@ -266,13 +266,13 @@ const seed = async () => {
 
       // 4. Create Classes
       const class10 = await models.Class.create({
-        name: 'Grade 10',
-        code: 'G10',
+        name: 'Class 10',
+        code: 'C10',
         description: 'Sophomore High School Class'
       });
       const class11 = await models.Class.create({
-        name: 'Grade 11',
-        code: 'G11',
+        name: 'Class 11',
+        code: 'C11',
         description: 'Junior High School Class'
       });
 
@@ -473,20 +473,20 @@ const seed = async () => {
       });
 
       // --- POPULATE REQUESTED DATA FOR GREENVALLEY ---
-      console.log('Generating requested data for Greenvalley: 5 grades, 3 sections each, 5 subjects each, 10 teachers, 50 students');
+      console.log('Generating requested data for Greenvalley: 5 classes, 3 sections each, 5 subjects each, 10 teachers, 50 students');
 
-      // 1. Create 5 Grades
+      // 1. Create 5 Classes
       const newClasses = [];
       for (let i = 1; i <= 5; i++) {
         const cls = await models.Class.create({
-          name: `Grade ${i}`,
-          code: `G${i}`,
-          description: `Elementary School Grade ${i}`
+          name: `Class ${i}`,
+          code: `C${i}`,
+          description: `Elementary School Class ${i}`
         });
         newClasses.push(cls);
       }
 
-      // 2. Create 3 Sections for each Grade (A, B, C) and 5 Subjects for each Grade
+      // 2. Create 3 Sections for each Class (A, B, C) and 5 Subjects for each Class
       const sectionsList = [];
       const subjectsMap = {}; // classId -> list of subjects
 
@@ -497,7 +497,7 @@ const seed = async () => {
           const sec = await models.Section.create({
             classId: cls._id,
             name: `Section ${sName}`,
-            roomNumber: `Room ${cls.code.replace('G', '')}0${secNames.indexOf(sName) + 1}`,
+            roomNumber: `Room ${cls.code.replace('C', '')}0${secNames.indexOf(sName) + 1}`,
             capacity: 30
           });
           sectionsList.push(sec);
