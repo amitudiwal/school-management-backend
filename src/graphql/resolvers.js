@@ -1294,6 +1294,17 @@ const resolvers = {
       return await models.BookIssue.find().populate('bookId').populate('userId');
     },
 
+    getNotifications: async (_, { role }, context) => {
+      authorize(context);
+      let query = {};
+      if (role) {
+        query.recipientRoles = role;
+      } else if (context.role !== 'SUPER_ADMIN' && context.role !== 'SCHOOL_ADMIN' && context.role !== 'PRINCIPAL' && context.role !== 'VICE_PRINCIPAL') {
+        query.recipientRoles = context.role;
+      }
+      return await models.Notifications.find(query).sort({ createdAt: -1 });
+    },
+
     getTransportRoutes: async (_, __, context) => {
       authorize(context);
       return await models.TransportRoutes.find();
@@ -2857,6 +2868,48 @@ const resolvers = {
       }
 
       return await models.BookIssue.findById(issueId).populate('bookId').populate('userId');
+    },
+
+    updateLibraryBook: async (_, args, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'LIBRARIAN', 'TEACHER', 'SUPER_TEACHER', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      const { id, ...updates } = args;
+      const book = await models.LibraryBooks.findById(id);
+      if (!book) throw new Error('Book not found.');
+      
+      if (updates.totalCopies !== undefined) {
+        const diff = updates.totalCopies - book.totalCopies;
+        updates.availableCopies = Math.max(0, book.availableCopies + diff);
+      }
+      
+      return await models.LibraryBooks.findByIdAndUpdate(id, updates, { new: true });
+    },
+
+    deleteLibraryBook: async (_, { id }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'LIBRARIAN', 'TEACHER', 'SUPER_TEACHER', 'PRINCIPAL', 'VICE_PRINCIPAL']);
+      const book = await models.LibraryBooks.findById(id);
+      if (!book) throw new Error('Book not found.');
+      
+      await models.BookIssue.deleteMany({ bookId: id });
+      await models.LibraryBooks.findByIdAndDelete(id);
+      return true;
+    },
+
+    createNotification: async (_, { title, message, type, recipientRoles }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
+      return await models.Notifications.create({
+        title,
+        message,
+        type,
+        recipientRoles,
+        schoolId: context.schoolId
+      });
+    },
+
+    deleteNotification: async (_, { id }, context) => {
+      authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
+      const deleted = await models.Notifications.findByIdAndDelete(id);
+      if (!deleted) throw new Error('Notification not found.');
+      return true;
     },
 
     createTransportRoute: async (_, args, context) => {

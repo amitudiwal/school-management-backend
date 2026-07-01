@@ -531,7 +531,24 @@ app.get('/api/export/:type/:module', protect, async (req, res) => {
     if (module === 'students') {
       title = 'Student Directory';
       headers = ['Admission No', 'Roll No', 'Full Name', 'Gender', 'DOB', 'Class'];
-      const data = await models.Student.find().populate('classId');
+      
+      const query = {};
+      if (req.query.classId) {
+        query.classId = req.query.classId;
+      }
+      if (req.query.sectionId) {
+        query.sectionId = req.query.sectionId;
+      }
+      if (req.query.search) {
+        const searchRegex = { $regex: req.query.search, $options: 'i' };
+        query.$or = [
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { admissionNo: searchRegex }
+        ];
+      }
+      
+      const data = await models.Student.find(query).populate('classId');
       rows = data.map(s => [
         s.admissionNo,
         s.rollNo || '-',

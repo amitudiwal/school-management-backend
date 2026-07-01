@@ -615,6 +615,15 @@ const typeDefs = gql`
     finePaidStatus: String!
   }
 
+  type Notification {
+    id: ID!
+    title: String!
+    message: String!
+    type: String!
+    recipientRoles: [String!]
+    createdAt: Date!
+  }
+
   # Transport & Inventory Types
   type TransportRoute {
     id: ID!
@@ -901,6 +910,7 @@ const typeDefs = gql`
     # Ops
     getLibraryBooks(search: String): [LibraryBook!]!
     getBookIssues: [BookIssue!]!
+    getNotifications(role: String): [Notification!]!
     getTransportRoutes: [TransportRoute!]!
     getVehicles: [Vehicle!]!
     getInventoryList: [Inventory!]!
@@ -1144,8 +1154,12 @@ const typeDefs = gql`
 
     # Library, Transport & Inventory
     createLibraryBook(title: String!, author: String!, isbn: String!, category: String!, totalCopies: Int!, rackNo: String): LibraryBook!
+    updateLibraryBook(id: ID!, title: String, author: String, isbn: String, category: String, totalCopies: Int, rackNo: String): LibraryBook!
+    deleteLibraryBook(id: ID!): Boolean!
     issueLibraryBook(bookId: ID!, userId: ID!, dueDate: Date!): BookIssue!
     returnLibraryBook(issueId: ID!, fineAmount: Float, finePaidStatus: String): BookIssue!
+    createNotification(title: String!, message: String!, type: String!, recipientRoles: [String!]): Notification!
+    deleteNotification(id: ID!): Boolean!
     createTransportRoute(routeName: String!, startLocation: String!, endLocation: String!, stops: [StopInput!], routeFee: Float!): TransportRoute!
     createVehicle(vehicleNo: String!, model: String, capacity: Int!, driverName: String!, driverPhone: String!, routeId: ID): Vehicle!
     updateVehicleLocation(id: ID!, latitude: Float!, longitude: Float!, status: String!): Vehicle!
