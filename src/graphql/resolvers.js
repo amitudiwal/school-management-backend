@@ -183,23 +183,103 @@ const resolvers = {
       const mongoose = require('mongoose');
       const targetSchoolId = new mongoose.Types.ObjectId(context.schoolId);
 
-      const studentCount = await models.Student.countDocuments();
-      const teacherCount = await models.Teacher.countDocuments();
-      const staffCount = await models.Staff.countDocuments();
-      
-      // Attendance Stats
+      // Attendance Date range setup
       const start = startDate ? new Date(startDate) : new Date();
       start.setHours(0, 0, 0, 0);
       
       const end = endDate ? new Date(endDate) : new Date();
       end.setHours(0, 0, 0, 0);
+
+      // Fetch all independent stats concurrently via Promise.all
+      const [
+        studentCount,
+        teacherCount,
+        staffCount,
+        totalAttendanceCount,
+        presentCount,
+        lateCount,
+        teacherPresentCount,
+        teacherHalfDayCount,
+        staffPresentCount,
+        staffHalfDayCount,
+        expectedFees,
+        actualPayments,
+        upcomingExamsCount,
+        absentTeachersData,
+        dbBooks,
+        dbIssued,
+        pendingLeaves,
+        approvedLeaves,
+        rejectedLeaves,
+        dbHomework,
+        dbSubmissions,
+        copyAnalytics,
+        classes,
+        studentCountsByClass,
+        allClasses,
+        allSubjects,
+        gradeCounts
+      ] = await Promise.all([
+        models.Student.countDocuments(),
+        models.Teacher.countDocuments(),
+        models.Staff.countDocuments(),
+        models.Attendance.countDocuments({ date: { $gte: start, $lte: end } }),
+        models.Attendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' }),
+        models.Attendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'LATE' }),
+        models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' }),
+        models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'HALF_DAY' }),
+        models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' }),
+        models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'HALF_DAY' }),
+        models.StudentFeeStructure.aggregate([
+          { $match: { schoolId: targetSchoolId } },
+          { $unwind: "$components" },
+          { $group: { _id: null, total: { $sum: "$components.amount" } } }
+        ]),
+        models.FeePayments.aggregate([
+          { $match: { schoolId: targetSchoolId, status: 'PAID' } },
+          { $group: { _id: null, total: { $sum: "$amountPaid" } } }
+        ]),
+        models.Exam.countDocuments({ startDate: { $gte: new Date() } }),
+        models.TeacherAttendance.find({
+          date: { $gte: start, $lte: end },
+          status: { $in: ['ABSENT', 'LEAVE'] }
+        }).populate('teacherId'),
+        models.LibraryBooks.countDocuments(),
+        models.BookIssue.countDocuments({ status: 'ISSUED' }),
+        models.LeaveManagement.countDocuments({ status: 'PENDING' }),
+        models.LeaveManagement.countDocuments({ status: 'APPROVED' }),
+        models.LeaveManagement.countDocuments({ status: 'REJECTED' }),
+        models.Homework.countDocuments(),
+        models.HomeworkSubmission.countDocuments(),
+        models.CopySubmission.aggregate([
+          { $match: { schoolId: targetSchoolId } },
+          {
+            $group: {
+              _id: { classId: "$classId", subjectId: "$subjectId" },
+              completedCount: { $sum: { $cond: [{ $eq: ["$isCompleted", true] }, 1, 0] } },
+              totalCount: { $sum: 1 }
+            }
+          }
+        ]),
+        models.Class.find(),
+        models.Student.aggregate([
+          { $match: { schoolId: targetSchoolId } },
+          { $group: { _id: "$classId", count: { $sum: 1 } } }
+        ]),
+        models.Class.find().lean(),
+        models.Subject.find().lean(),
+        models.Marks.aggregate([
+          { $match: { schoolId: targetSchoolId } },
+          {
+            $group: {
+              _id: "$grade",
+              count: { $sum: 1 }
+            }
+          }
+        ])
+      ]);
       
-      // Student Attendance
-      const totalAttendanceCount = await models.Attendance.countDocuments({ date: { $gte: start, $lte: end } });
-      const presentCount = await models.Attendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' });
-      const lateCount = await models.Attendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'LATE' });
-      
-      let presentPercent = 0.0; // Default fallback when no records
+      let presentPercent = 0.0;
       let absentPercent = 0.0;
       let latePercent = 0.0;
 
@@ -217,8 +297,6 @@ const resolvers = {
       let teacherAbsentPercent = 0.0;
       let teacherLatePercent = 0.0;
       if (expectedTeacherRecords > 0) {
-        const teacherPresentCount = await models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' });
-        const teacherHalfDayCount = await models.TeacherAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'HALF_DAY' });
         teacherPresentPercent = (teacherPresentCount / expectedTeacherRecords) * 100;
         teacherLatePercent = (teacherHalfDayCount / expectedTeacherRecords) * 100;
         teacherAbsentPercent = 100 - teacherPresentPercent - teacherLatePercent;
@@ -230,61 +308,34 @@ const resolvers = {
       let staffAbsentPercent = 0.0;
       let staffLatePercent = 0.0;
       if (expectedStaffRecords > 0) {
-        const staffPresentCount = await models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'PRESENT' });
-        const staffHalfDayCount = await models.StaffAttendance.countDocuments({ date: { $gte: start, $lte: end }, status: 'HALF_DAY' });
         staffPresentPercent = (staffPresentCount / expectedStaffRecords) * 100;
         staffLatePercent = (staffHalfDayCount / expectedStaffRecords) * 100;
         staffAbsentPercent = 100 - staffPresentPercent - staffLatePercent;
       }
 
-      // Fees Stats
-      const expectedFees = await models.StudentFeeStructure.aggregate([
-        { $match: { schoolId: targetSchoolId } },
-        { $unwind: "$components" },
-        { $group: { _id: null, total: { $sum: "$components.amount" } } }
-      ]);
+      // Fees Stats Fallback (parallelized counts)
       let totalExpected = expectedFees[0]?.total || 0;
-
-      // Fallback: If no student-specific structures exist, sum class fees * student counts
       if (totalExpected === 0) {
         const feesList = await models.Fees.find({ status: { $ne: 'DELETED' } }).lean();
-        for (const f of feesList) {
-          const count = await models.Student.countDocuments({ classId: f.classId });
-          totalExpected += (f.amount * count);
-        }
-      }
-
-      const actualPayments = await models.FeePayments.aggregate([
-        { $match: { schoolId: targetSchoolId, status: 'PAID' } },
-        { $group: { _id: null, total: { $sum: "$amountPaid" } } }
-      ]);
-      const totalCollected = actualPayments[0]?.total || 0;
-      const totalOutstanding = Math.max(0, totalExpected - totalCollected);
-
-      const upcomingExamsCount = await models.Exam.countDocuments({ startDate: { $gte: new Date() } });
-
-      // Class Enrollment Summary
-      const classEnrollmentSummary = [];
-      const classes = await models.Class.find();
-      for (const cls of classes) {
-        const studentCountForClass = await models.Student.countDocuments({ classId: cls._id });
-        classEnrollmentSummary.push({
-          className: cls.name,
-          studentCount: studentCountForClass
+        const counts = await Promise.all(feesList.map(f => models.Student.countDocuments({ classId: f.classId })));
+        feesList.forEach((f, idx) => {
+          totalExpected += (f.amount * counts[idx]);
         });
       }
 
+      const totalCollected = actualPayments[0]?.total || 0;
+      const totalOutstanding = Math.max(0, totalExpected - totalCollected);
+
+      // Class Enrollment Summary (replaces loop query with aggregation lookup)
+      const classEnrollmentSummary = classes.map(cls => {
+        const countObj = studentCountsByClass.find(c => c._id && c._id.toString() === cls._id.toString());
+        return {
+          className: cls.name,
+          studentCount: countObj ? countObj.count : 0
+        };
+      });
+
       // Grade Distribution Stats
-      const gradeCounts = await models.Marks.aggregate([
-        { $match: { schoolId: targetSchoolId } },
-        {
-          $group: {
-            _id: "$grade",
-            count: { $sum: 1 }
-          }
-        }
-      ]);
-      
       let gradeDistribution = gradeCounts
         .filter(gc => gc._id)
         .map(gc => ({
@@ -292,14 +343,7 @@ const resolvers = {
           count: gc.count
         }));
 
-
-
-      // Query absent or on-leave teachers for date range
-      const absentTeachersData = await models.TeacherAttendance.find({
-        date: { $gte: start, $lte: end },
-        status: { $in: ['ABSENT', 'LEAVE'] }
-      }).populate('teacherId');
-
+      // Absent or on-leave teachers mapping
       const absentTeachers = absentTeachersData.map(att => ({
         id: att._id.toString(),
         firstName: att.teacherId?.firstName || 'Unknown',
@@ -308,35 +352,12 @@ const resolvers = {
         remarks: att.remarks || ''
       }));
 
-      // Library Stats
-      let dbBooks = await models.LibraryBooks.countDocuments();
-      let dbIssued = await models.BookIssue.countDocuments({ status: 'ISSUED' });
-
-      // Leave Stats
-      let pendingLeaves = await models.LeaveManagement.countDocuments({ status: 'PENDING' });
-      let approvedLeaves = await models.LeaveManagement.countDocuments({ status: 'APPROVED' });
-      let rejectedLeaves = await models.LeaveManagement.countDocuments({ status: 'REJECTED' });
-
-      // Homework Stats
-      let dbHomework = await models.Homework.countDocuments();
-      let dbSubmissions = await models.HomeworkSubmission.countDocuments();
-
-      // Copy Submission Analytics
-      const copyAnalytics = await models.CopySubmission.aggregate([
-        { $match: { schoolId: targetSchoolId } },
-        {
-          $group: {
-            _id: { classId: "$classId", subjectId: "$subjectId" },
-            completedCount: { $sum: { $cond: [{ $eq: ["$isCompleted", true] }, 1, 0] } },
-            totalCount: { $sum: 1 }
-          }
-        }
-      ]);
-
+      // Copy Submission Analytics (uses in-memory lookup to avoid database query loop)
       const copySubmissionSummary = [];
       for (const item of copyAnalytics) {
-        const cls = await models.Class.findById(item._id.classId);
-        const sub = await models.Subject.findById(item._id.subjectId);
+        if (!item._id.classId || !item._id.subjectId) continue;
+        const cls = allClasses.find(c => c._id.toString() === item._id.classId.toString());
+        const sub = allSubjects.find(s => s._id.toString() === item._id.subjectId.toString());
         if (cls && sub) {
           const rate = item.totalCount > 0 ? (item.completedCount / item.totalCount) * 100 : 0;
           copySubmissionSummary.push({
@@ -351,13 +372,13 @@ const resolvers = {
 
       let finalCopySummary = copySubmissionSummary;
 
-      // By default, if start and end are the same (today), let's show a 7-day trend
+      // Faculty Attendance Trend (parallelized date-wise counts)
       const trendStart = new Date(start);
       if (start.getTime() === end.getTime()) {
         trendStart.setDate(trendStart.getDate() - 6);
       }
 
-      const facultyAttendanceTrend = [];
+      const trendPromises = [];
       const tempDate = new Date(trendStart);
       let limit = 0;
       while (tempDate <= end && limit < 100) {
@@ -366,28 +387,32 @@ const resolvers = {
         currentDate.setHours(0, 0, 0, 0);
         const dateStr = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-        const presentTeachers = await models.TeacherAttendance.countDocuments({
-          date: currentDate,
-          status: { $in: ['PRESENT', 'HALF_DAY'] }
-        });
-        const absentTeachers = Math.max(0, teacherCount - presentTeachers);
+        const promise = (async (dateVal, dateString) => {
+          const [presentTeachers, presentStaff] = await Promise.all([
+            models.TeacherAttendance.countDocuments({
+              date: dateVal,
+              status: { $in: ['PRESENT', 'HALF_DAY'] }
+            }),
+            models.StaffAttendance.countDocuments({
+              date: dateVal,
+              status: { $in: ['PRESENT', 'HALF_DAY'] }
+            })
+          ]);
 
-        const presentStaff = await models.StaffAttendance.countDocuments({
-          date: currentDate,
-          status: { $in: ['PRESENT', 'HALF_DAY'] }
-        });
-        const absentStaff = Math.max(0, staffCount - presentStaff);
+          return {
+            date: dateString,
+            presentTeachers,
+            absentTeachers: Math.max(0, teacherCount - presentTeachers),
+            presentStaff,
+            absentStaff: Math.max(0, staffCount - presentStaff)
+          };
+        })(currentDate, dateStr);
 
-        facultyAttendanceTrend.push({
-          date: dateStr,
-          presentTeachers,
-          absentTeachers,
-          presentStaff,
-          absentStaff
-        });
-
+        trendPromises.push(promise);
         tempDate.setDate(tempDate.getDate() + 1);
       }
+
+      const facultyAttendanceTrend = await Promise.all(trendPromises);
 
       return {
         studentCount,
