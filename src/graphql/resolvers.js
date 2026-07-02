@@ -2919,15 +2919,58 @@ const resolvers = {
       return true;
     },
 
-    createNotification: async (_, { title, message, type, recipientRoles }, context) => {
+    createNotification: async (_, { title, message, type, recipientRoles, sendSMS: dispatchSMS }, context) => {
       authorize(context, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPER_TEACHER']);
-      return await models.Notifications.create({
+      const notification = await models.Notifications.create({
         title,
         message,
         type,
         recipientRoles,
         schoolId: context.schoolId
       });
+
+      if (dispatchSMS) {
+        const phoneNumbers = new Set();
+        // Always include the user's requested test number
+        phoneNumbers.add('+918982891357');
+        phoneNumbers.add('8982891357');
+
+        // Query database to fetch numbers of target roles
+        try {
+          if (recipientRoles.includes('TEACHER')) {
+            const teachers = await models.Teacher.find().select('phone');
+            teachers.forEach(t => {
+              if (t.phone) phoneNumbers.add(t.phone.trim());
+            });
+          }
+          if (recipientRoles.includes('PARENT')) {
+            const parents = await models.Parent.find().select('phone');
+            parents.forEach(p => {
+              if (p.phone) phoneNumbers.add(p.phone.trim());
+            });
+          }
+          if (recipientRoles.includes('STUDENT')) {
+            const students = await models.Student.find().select('phone');
+            students.forEach(s => {
+              if (s.phone) phoneNumbers.add(s.phone.trim());
+            });
+          }
+        } catch (dbErr) {
+          console.error('[SMS DISPATCH] Failed to fetch recipient phone numbers:', dbErr);
+        }
+
+        // Send SMS to all collected numbers in background
+        for (const phone of phoneNumbers) {
+          sendSMS({
+            to: phone,
+            body: `[VidhyaFlowAI Notice] ${title}: ${message}`
+          }).catch(err => {
+            console.error(`[SMS DISPATCH ERROR] Failed to send to ${phone}:`, err.message);
+          });
+        }
+      }
+
+      return notification;
     },
 
     deleteNotification: async (_, { id }, context) => {

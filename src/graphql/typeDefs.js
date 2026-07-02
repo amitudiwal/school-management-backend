@@ -1158,7 +1158,7 @@ const typeDefs = gql`
     deleteLibraryBook(id: ID!): Boolean!
     issueLibraryBook(bookId: ID!, userId: ID!, dueDate: Date!): BookIssue!
     returnLibraryBook(issueId: ID!, fineAmount: Float, finePaidStatus: String): BookIssue!
-    createNotification(title: String!, message: String!, type: String!, recipientRoles: [String!]): Notification!
+    createNotification(title: String!, message: String!, type: String!, recipientRoles: [String!]!, sendSMS: Boolean): Notification!
     deleteNotification(id: ID!): Boolean!
     createTransportRoute(routeName: String!, startLocation: String!, endLocation: String!, stops: [StopInput!], routeFee: Float!): TransportRoute!
     createVehicle(vehicleNo: String!, model: String, capacity: Int!, driverName: String!, driverPhone: String!, routeId: ID): Vehicle!

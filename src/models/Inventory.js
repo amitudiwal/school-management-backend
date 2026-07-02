@@ -10,7 +10,6 @@ const inventorySchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ['STATIONERY', 'FURNITURE', 'LAB_EQUIPMENT', 'SPORTS', 'CLASSROOM', 'COMPUTERS', 'OTHER'],
       required: true
     },
     quantity: {
